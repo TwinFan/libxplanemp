@@ -106,6 +106,7 @@ struct	CSLPlane_t {
 	string						texturePath;	// Full path to the planes texture
 	string						textureLitPath; // Full path to the planes lit texture
 	bool						moving_gear;	// Does gear retract?
+    float                       vertOffset;     // vertical offset
 
 	// plane_Austin
 	int							austin_idx;

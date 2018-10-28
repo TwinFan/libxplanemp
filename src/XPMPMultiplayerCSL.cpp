@@ -682,6 +682,29 @@ bool ParseLiveryCommand(const std::vector<std::string> &tokens, CSLPackage_t &pa
 	return true;
 }
 
+bool ParseVertOffsetCommand(const std::vector<std::string> & tokens,
+                            CSLPackage_t& package,
+                            const string& path, int lineNum, const string& line)
+{
+    // VERT_OFFSET <offset.decimal>
+    if (tokens.size() != 2)
+    {
+        XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET command takes one argument: the offset.\n";
+        return false;
+    }
+    
+    // just try converting to float, then some sanity checks
+    float vertOffset = atof(tokens[1].c_str());
+    if (vertOffset < -30 || vertOffset > 30) {
+        // offset of more than 30m seems a bit unlikely...
+        XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET of more than 30m ignored.\n";
+    }
+    
+    // save vertical offset to current plane
+    package.planes.back().vertOffset = vertOffset;
+    return true;
+}
+ 
 bool ParseDummyCommand(const std::vector<std::string> & /* tokens */, CSLPackage_t & /* package */, const string& /* path */, int /*lineNum*/, const string& /*line*/)
 {
 	return true;
@@ -751,6 +774,9 @@ void ParseFullPackage(const std::string &content, CSLPackage_t &package)
 		{ "ICAO", &ParseIcaoCommand },
 		{ "AIRLINE", &ParseAirlineCommand },
 		{ "LIVERY", &ParseLiveryCommand },
+/*** INSERTED by TwinFan ***/
+        { "VERT_OFFSET", &ParseVertOffsetCommand },
+/*** END OF INSERT ***/
 	};
 
 	stringstream sin(content);

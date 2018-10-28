@@ -327,7 +327,12 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 			double	x,y,z;
 			XPLMWorldToLocal(pos.lat, pos.lon, pos.elevation * kFtToMeters, &x, &y, &z);
-			
+            
+            // Apply vertical offset to local elevation
+            XPMPPlanePtr pPlane = static_cast<XPMPPlanePtr>(id);
+            if (pPlane->model)
+                y += pPlane->model->vertOffset;
+
 			float distMeters = sqrt(sphere_distance_sqr(&gl_camera,
 														static_cast<float>(x),
 														static_cast<float>(y),
