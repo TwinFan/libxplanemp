@@ -228,15 +228,20 @@ const char * 	XPMPMultiplayerInit(
 	XPMPInitDefaultPlaneRenderer();
 
 	// Register the plane control calls.
-	XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Gauges, 0, /* after*/ 0 /* hide planes*/);
+    // change num of planes when drawing gauges (for TCAS display)
+	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
+							 xplm_Phase_Gauges, 0, /* after*/ 0 /* hide planes*/))
+        problem=true;
 
-	XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Gauges, 1, /* before */ (void *) -1 /* show planes*/);
+	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
+							 xplm_Phase_Gauges, 1, /* before */ (void *) -1 /* show planes*/))
+        problem=true;
 
 	// Register the actual drawing func.
-	XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
-							 xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */);
+	if ( !XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
+							 xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */))
+        problem=true;
+/*** END OF CHANGE ***/
 
 	if (problem)		return "There were problems initializing " XPMP_CLIENT_LONGNAME ".  Please examine X-Plane's error.out file for detailed information.";
 	else 				return "";
@@ -510,7 +515,48 @@ int	XPMPChangePlaneModel(
 	}
 
 	return plane->match_quality;
-}	
+}
+
+/*
+ * XPMPGetPlaneModel
+ *
+ * Returns a textual description of the model in use
+ * Returns required buf size, i.e. length of description.
+ * Negative values indicate failure (wrong PlaneID).
+ *
+ */
+int     XPMPGetPlaneModelName(
+            XPMPPlaneID         inPlaneID,
+            char *              outTxtBuf,
+            int                 outTxtBufSize)
+{
+    std::string modelName ("(none)");
+    
+    // fetch plane pointer, exit if NULL
+    XPMPPlanePtr plane = XPMPPlaneFromID(inPlaneID);
+    if (!plane) return -1;
+    
+    // get model name if there is a current model, otherwise "(none)"
+    if ( plane->model )
+    {
+        modelName = plane->model->getModelName();
+    
+        // if more or less empty use type, airline, file_path
+        if (modelName == " ")
+            modelName =
+                plane->model->icao + " " +
+                plane->model->airline + " " +
+                plane->model->file_path;
+    }
+    
+    // copy into outBuffer as much as possible
+    if (outTxtBuf && outTxtBufSize > 1)
+        strncpy(outTxtBuf, modelName.c_str(), outTxtBufSize);
+    
+    // return required string len
+    return (int)modelName.length();
+}
+/*** END OF INSERT ***/
 
 void	XPMPSetDefaultPlaneICAO(
 		const char *			inICAO)

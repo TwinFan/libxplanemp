@@ -422,6 +422,20 @@ int 	XPMPChangePlaneModel(
 		const char *			inLivery);
 
 /*
+ * XPMPGetPlaneModelName
+ *
+ * Return the name of the model in use
+ * Returns required buf size, i.e. length of description.
+ * Negative values indicate failure (wrong PlaneID).
+ *
+ */
+int     XPMPGetPlaneModelName(
+        XPMPPlaneID             inPlaneID,
+        char *                  outTxtBuf,
+        int                     outTxtBufSize);
+    
+    
+/*
  * XPMPSetDefaultPlaneICAO
  *
  * This routine controls what ICAO is used as a backup search criteria for a not-found plane.
