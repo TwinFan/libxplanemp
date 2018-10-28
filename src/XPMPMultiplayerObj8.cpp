@@ -185,11 +185,16 @@ static void		draw_objects_for_mode(one_obj * who, int want_translucent)
 		if((want_translucent && dt == draw_glass) ||
 				(!want_translucent && dt != draw_glass))
 		{
-			for(one_inst * i = who->head; i; i = i->next)
+            // set dataref ptr to light + obj state from "one_inst".
+            // loop over objects
+            // TwinFan: removing the original loop-local variable 'i'
+            //          removed a rare crash due to access violation,
+            //          whose exact reason remains a mystery.
+			for(s_cur_plane = who->head;
+                s_cur_plane;
+                s_cur_plane = s_cur_plane->next)
 			{
-				s_cur_plane = i;
-				// set dataref ptr to light + obj sate from "one_inst".
-				XPLMDrawObjects(who->model->handle, 1, &i->location, 1, 0);
+				XPLMDrawObjects(who->model->handle, 1, &s_cur_plane->location, 1, 0);
 			}
 		}
 		who = who->next;
