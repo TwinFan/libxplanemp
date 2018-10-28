@@ -128,7 +128,7 @@ bool	OGL_HasExtension(const std::string &inExtensionName)
 		const GLubyte *	glExtAll = glGetString(GL_EXTENSIONS);
 		std::string 	allExtensions(reinterpret_cast<const char *>(glExtAll));
 
-		int offs;
+        std::string::size_type offs;
 		while ((offs = allExtensions.find(" ")) != std::string::npos) {
 			xpmp_glExtensions.insert(allExtensions.substr(0, offs));
 			allExtensions = allExtensions.substr(offs+1);

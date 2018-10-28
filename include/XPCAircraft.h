@@ -1,7 +1,7 @@
 #ifndef _XPCAircraft_h_
 #define _XPCAircraft_h_
 
-#include <XPMPMultiplayer.h>
+#include "XPMPMultiplayer.h"
 
 class	XPCAircraft {
 public:

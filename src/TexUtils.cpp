@@ -31,7 +31,7 @@
 #include <sstream>
 #include <cstdio>
 #include <cstring>
-#include <XPMPMultiplayer.h>
+#include "XPMPMultiplayer.h"
 #if IBM
 #include <GL/gl.h>
 #include <GL/glu.h>

@@ -283,7 +283,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	double	fullPlaneDist = x_camera.zoom * (5280.0 / 3.2) * (gFloatPrefsFunc ? gFloatPrefsFunc("planes","full_distance", 3.0) : 3.0);	// Only draw planes fully within 3 miles.
 	int		maxFullPlanes = gIntPrefsFunc ? gIntPrefsFunc("planes","max_full_count", 100) : 100;						// Draw no more than 100 full planes!
 
-	gTotPlanes = planeCount;
+	gTotPlanes = (int)planeCount;
 	gNavPlanes = gACFPlanes = gOBJPlanes = 0;
 
 	int modelCount, active, plugin, tcas;

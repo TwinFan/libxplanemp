@@ -76,7 +76,7 @@ inline void BMP_EndianFlipShort(short * x) { short t = Endian16_Swap(*x); *x = t
  * On other operating systems, it uses the libpng which the developer has installed on their system. There are no libpng or zlib
  * headers, source code, or binaries, anywhere in swift's git repository (which includes our fork of libxplanemp).
  */
-#include <png.h>
+#include <libpng/png.h>
 
 int		CreateBitmapFromFile(const char * inFilePath, struct ImageInfo * outImageInfo)
 {
@@ -911,8 +911,8 @@ int		CreateBitmapFromPNG(const char * inFilePath, struct ImageInfo * outImageInf
 				 &bit_depth,&color_type,&interlace_type,
 				 &compression_type,&P_filter_type);
 
-	outImageInfo->width = width;
-	outImageInfo->height = height;
+	outImageInfo->width = (int)width;
+	outImageInfo->height = (int)height;
 
 	if(  png_get_gAMA (pngPtr,infoPtr     ,&lcl_gamma))		// Perhaps the file has its gamma recorded, for example by photoshop. Just tell png to callibrate for our hw platform.
 		png_set_gamma(pngPtr,screen_gamma, lcl_gamma);
