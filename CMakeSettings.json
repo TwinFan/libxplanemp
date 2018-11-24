@@ -1,0 +1,50 @@
+﻿{
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
+      "buildRoot": "${projectDir}\\build\\${name}",
+      "installRoot": "${projectDir}\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "-v",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "XPSDK_DIR",
+          "value": "${projectDir}\\..\\..\\XPSDK"
+        },
+        {
+          "name": "ADDITIONAL_INCLUDES",
+          "value": "${projectDir}\\..\\..\\LibIncludes"
+        }
+      ]
+    },
+    {
+      "name": "x64-Release",
+      "generator": "Ninja",
+      "configurationType": "RelWithDebInfo",
+      "inheritEnvironments": [
+        "msvc_x64_x64"
+      ],
+      "buildRoot": "${projectDir}\\build\\${name}",
+      "installRoot": "${projectDir}\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "-v",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "XPSDK_DIR",
+          "value": "${projectDir}\\..\\..\\XPSDK"
+        },
+        {
+          "name": "ADDITIONAL_INCLUDES",
+          "value": "${projectDir}\\..\\..\\LibIncludes"
+        }
+      ]
+    }
+  ]
+}

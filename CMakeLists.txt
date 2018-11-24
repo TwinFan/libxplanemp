@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(xpsdk LANGUAGES C CXX)
+project(xplanemp LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules" ${CMAKE_MODULE_PATH})
 find_package(XPSDK REQUIRED)
 
@@ -11,7 +11,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
 else()
 	set(XPMP_DEBUG OFF)
 endif()
-CMAKE_DEPENDENT_OPTION(XPMP_DEBUG_OPENGL "Install OpenGL Debug hooks and debug info" ON "XPMP_DEBUG" OFF)
+# CMAKE_DEPENDENT_OPTION(XPMP_DEBUG_OPENGL "Install OpenGL Debug hooks and debug info" ON "XPMP_DEBUG" OFF)
 if(XPMP_DEBUG_OPENGL)
 	set(XPMP_DEFINES ${XPMP_DEFINES} DEBUG_GL=1)
 endif()
@@ -21,7 +21,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	#set(XPMP_PLATFORM_SOURCES
 	#	src/PlatformUtils.lin.cpp)
 elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
-	set(XPMP_DEFINES ${XPMP_DEFINES} IBM=1)
+	set(XPMP_DEFINES ${XPMP_DEFINES} IBM=1 _CRT_SECURE_NO_WARNINGS)
 	#set(XPMP_PLATFORM_SOURCES
 	#	src/PlatformUtils.win.cpp)
 	set(XPMP_PLATFORM_LIBRARIES opengl32 glu32)
@@ -55,6 +55,7 @@ add_library(xplanemp
 	src/XUtils.cpp)
 target_include_directories(xplanemp
 	PUBLIC 
+		${ADDITIONAL_INCLUDES}
 		${XPSDK_INCLUDE_DIRS}
 		${CMAKE_CURRENT_SOURCE_DIR}/include
 		${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -65,3 +66,6 @@ target_link_libraries(xplanemp
 target_compile_definitions(xplanemp PRIVATE ${XPMP_DEFINES} PUBLIC XUTILS_EXCLUDE_MAC_CRAP=1)
 set_property(TARGET xplanemp PROPERTY CXX_STANDARD_REQUIRED 11)
 set_property(TARGET xplanemp PROPERTY CXX_STANDARD 14)
+
+message("CMAKE_CXX_FLAGS_DEBUG is ${CMAKE_CXX_FLAGS_DEBUG}")
+message("CMAKE_CXX_FLAGS_RELEASE is ${CMAKE_CXX_FLAGS_RELEASE}")

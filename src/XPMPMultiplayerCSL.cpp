@@ -694,7 +694,7 @@ bool ParseVertOffsetCommand(const std::vector<std::string> & tokens,
     }
     
     // just try converting to float, then some sanity checks
-    float vertOffset = atof(tokens[1].c_str());
+    float vertOffset = (float)atof(tokens[1].c_str());
     if (vertOffset < -30 || vertOffset > 30) {
         // offset of more than 30m seems a bit unlikely...
         XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET of more than 30m ignored.\n";
