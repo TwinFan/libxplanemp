@@ -106,7 +106,7 @@ struct	CSLPlane_t {
 	string						texturePath;	// Full path to the planes texture
 	string						textureLitPath; // Full path to the planes lit texture
 	bool						moving_gear;	// Does gear retract?
-    float                       vertOffset;     // vertical offset
+    float                       vertOffset = 3.5f; // vertical offset (initialized to 3.5 good for Airbus-sized planes...netter than sliding on our belly)
 
 	// plane_Austin
 	int							austin_idx;
