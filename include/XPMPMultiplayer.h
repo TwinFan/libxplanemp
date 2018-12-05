@@ -27,11 +27,11 @@
 #include "XPLMDefs.h"
 
 #ifndef XPMP_CLIENT_NAME
-#define XPMP_CLIENT_NAME "XSB"
+#define XPMP_CLIENT_NAME "LT"
 #endif
 
 #ifndef XPMP_CLIENT_LONGNAME
-#define XPMP_CLIENT_LONGNAME "XSquawkBox"
+#define XPMP_CLIENT_LONGNAME "LiveTraffic"
 #endif
 
 #ifdef __cplusplus
