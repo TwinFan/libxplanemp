@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		25B23FA821BDCE1D0039A7F0 /* xplanemp.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 2544F4B720791654002FAA4C /* xplanemp.framework */; };
 		25C0C8BC2186019A0049F226 /* XPMPMultiplayer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25C0C89C218601540049F226 /* XPMPMultiplayer.cpp */; };
 		25C0C8BD2186023C0049F226 /* BitmapUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25C0C8A8218601540049F226 /* BitmapUtils.cpp */; };
 		25C0C8BE2186023C0049F226 /* TexUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25C0C8A3218601540049F226 /* TexUtils.cpp */; };
@@ -24,6 +25,19 @@
 		25C0C8CA21866C850049F226 /* XPMPMultiplayer.h in Headers */ = {isa = PBXBuildFile; fileRef = 25C0C896218601540049F226 /* XPMPMultiplayer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		25C0C8CB21866C880049F226 /* XPMPPlaneRenderer.h in Headers */ = {isa = PBXBuildFile; fileRef = 25C0C897218601540049F226 /* XPMPPlaneRenderer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		25B23FA721BDCDFA0039A7F0 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /Users/birger/Programming/Frameworks;
+			dstSubfolderSpec = 0;
+			files = (
+				25B23FA821BDCE1D0039A7F0 /* xplanemp.framework in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2544F4B720791654002FAA4C /* xplanemp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xplanemp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -191,6 +205,7 @@
 				2544F4B320791654002FAA4C /* Frameworks */,
 				2544F4B420791654002FAA4C /* Headers */,
 				2544F4B520791654002FAA4C /* Resources */,
+				25B23FA721BDCDFA0039A7F0 /* CopyFiles */,
 			);
 			buildRules = (
 			);

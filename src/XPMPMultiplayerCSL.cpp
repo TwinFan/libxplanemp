@@ -823,6 +823,39 @@ bool isPackageAlreadyLoaded(const std::string &packagePath)
 	return alreadyLoaded;
 }
 
+// Assign reasonable default values for vertOffset based on Doc8643
+void CSL_DefaultVertOffset(CSLPackage_t& package)
+{
+    // loop over plane in package
+    for (CSLPlane_t& plane: package.planes) {
+        // no vertOffset read from file?
+        if (plane.vertOffset <= 0) {
+            // lookup categorization in Doc8643
+            map<string, CSLAircraftCode_t>::const_iterator iterAcCodes =
+            gAircraftCodes.find(plane.icao);
+            if (iterAcCodes != gAircraftCodes.cend()) {
+                // found an Doc8643 element
+                const std::string& equip = iterAcCodes->second.equip;
+                if (equip.size() == 3) {
+                    int nEng = equip[1] - '0';          // number of engines
+                    enum { EQUIP_OTHER, EQUIP_JET, EQUIP_TURBO } eType =
+                    equip[2] == 'J' ? EQUIP_JET :       // type of engines
+                    equip[2] == 'T' ? EQUIP_TURBO : EQUIP_OTHER;
+    
+                    plane.vertOffset =
+                    nEng > 4 ?                          5.5 :   // large planes
+                    nEng == 3 && eType == EQUIP_JET ?   5   :   // 3 engine jets
+                    nEng == 3 ?                         3   :   // other 3 engine planes
+                    nEng == 2 && eType == EQUIP_JET ?   3.5 :   // 2 engine jets
+                    nEng == 2 && eType == EQUIP_TURBO ? 1.7 :   // 2 engine turbo props
+                    nEng == 2 ?                         1.5 :   // other 2 engine planes
+                                                        1.2;    // default, covers small planes
+                }
+            }
+        }
+    }
+}
+
 // This routine loads the related.txt file and also all packages.
 bool CSL_LoadCSL(const char * inFolderPath, const char * inRelatedFile, const char * inDoc8643)
 {
@@ -979,6 +1012,8 @@ bool CSL_LoadCSL(const char * inFolderPath, const char * inRelatedFile, const ch
 			packageFile += "xsb_aircraft.txt";
 			std::string packageContent = GetFileContent(packageFile);
 			ParseFullPackage(packageContent, package);
+            // assign default values for vertOffset
+            CSL_DefaultVertOffset(package);
 		}
 	}
 
