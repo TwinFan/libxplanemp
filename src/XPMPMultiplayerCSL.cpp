@@ -1173,32 +1173,57 @@ CSLPlane_t *	CSL_MatchPlane(const char * inICAO, const char * inAirline, const c
 		// 3. match WTC, #egines ("2")
 		// 4. match WTC, enginetype ("P")
 		// 5. match WTC
-		for(int pass = 1; pass <= 5; ++pass) {
-
+		for(int megaPass = 1; megaPass <= 10; ++megaPass) {
+            bool bMatchAirline = false;
+            int pass = -1;
+            switch(megaPass) {
+                case 1:  bMatchAirline = true;  pass = 1; break;
+                case 2:  bMatchAirline = true;  pass = 2; break;
+                case 3:  bMatchAirline = false; pass = 1; break;
+                case 4:  bMatchAirline = false; pass = 2; break;
+                case 5:  bMatchAirline = true;  pass = 3; break;
+                case 6:  bMatchAirline = true;  pass = 4; break;
+                case 7:  bMatchAirline = false; pass = 3; break;
+                case 8:  bMatchAirline = false; pass = 4; break;
+                case 9:  bMatchAirline = true;  pass = 5; break;
+                case 10: bMatchAirline = false; pass = 5; break;
+            }
+            
+            // don't need the airline pass if we don't have one
+            if (bMatchAirline && (!inAirline || !inAirline[0]))
+                continue;
+            
 			if (gIntPrefsFunc("debug", "model_matching", 0))
 			{
-				switch(pass) {
-				case 1: XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC and configuration\n"); break;
-				case 2: XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC, #engines and enginetype\n"); break;
-				case 3: XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC, #engines\n"); break;
-				case 4: XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC, enginetype\n"); break;
-				case 5: XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC\n"); break;
+				switch(megaPass) {
+                    case 1:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching airline, WTC and configuration\n");        break;
+                    case 2:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching airline, WTC, #engines and enginetype\n"); break;
+                    case 3:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC and configuration\n");                 break;
+                    case 4:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC, #engines and enginetype\n");          break;
+                    case 5:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching airline, WTC, #engines\n");                break;
+                    case 6:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching airline, WTC, enginetype\n");              break;
+                    case 7:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC, #engines\n");                         break;
+                    case 8:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC, enginetype\n");                       break;
+                    case 9:  XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching airline, WTC\n");                          break;
+                    case 10: XPLMDebugString(XPMP_CLIENT_NAME " Match/acf - matching WTC\n");                                   break;
 				}
 			}
 
-			for (size_t p = 0; p < gPackages.size(); ++p)
+            for (CSLPackage_t& pckg: gPackages)
 			{
-				std::map<string, int>::const_iterator it = gPackages[p].matches[4].begin();
-				while(it != gPackages[p].matches[4].end()) {
-
-					if (gPackages[p].planes[it->second].plane_type != plane_Austin ||		// Special check - do NOT match a plane that isn't loaded.
-							(gPackages[p].planes[it->second].austin_idx != -1 && gPackages[p].planes[it->second].austin_idx < total))
-						if (gPackages[p].planes[it->second].plane_type != plane_Obj ||
-								gPackages[p].planes[it->second].obj_idx != -1)
+                for (std::map<string, int>::const_iterator it = pckg.matches[bMatchAirline ? match_icao_airline : match_icao].cbegin();
+                     it != pckg.matches[bMatchAirline ? match_icao_airline : match_icao].end();
+                     ++it)
+                {
+                    CSLPlane_t& plane = pckg.planes[it->second];
+					if (plane.plane_type != plane_Austin ||		// Special check - do NOT match a plane that isn't loaded.
+						(plane.austin_idx != -1 && plane.austin_idx < total))
+						if (plane.plane_type != plane_Obj || plane.obj_idx != -1)
 						{
 							// we have a candidate, lets see if it matches our criteria
-							std::map<string, CSLAircraftCode_t>::const_iterator m = gAircraftCodes.find(it->first);
-							if(m != gAircraftCodes.end()) {
+                            const std::string icao (it->first.substr(0,4));
+							std::map<string, CSLAircraftCode_t>::const_iterator m = gAircraftCodes.find(icao);
+							if(m != gAircraftCodes.cend()) {
 								// category
 								bool match = (m->second.category == model_it->second.category);
 
@@ -1216,6 +1241,12 @@ CSLPlane_t *	CSL_MatchPlane(const char * inICAO, const char * inAirline, const c
 								// full configuration string
 								if(match && pass == 1)
 									match = (m->second.equip == model_it->second.equip);
+                                
+                                // airline
+                                if(match && bMatchAirline && (it->first.find(' ') != std::string::npos)) {
+                                    const std::string airline (it->first.substr(it->first.find(' ')+1));
+                                    match = (airline == inAirline);
+                                }
 
 								if(match) {
 									// bingo
@@ -1225,13 +1256,10 @@ CSLPlane_t *	CSL_MatchPlane(const char * inICAO, const char * inAirline, const c
 										XPLMDebugString(it->first.c_str());
 										XPLMDebugString("\n");
 									}
-
-									return &gPackages[p].planes[it->second];
+                                    return &plane;
 								}
 							}
 						}
-
-					++it;
 				}
 			}
 		}
