@@ -499,10 +499,13 @@ bool ParseObj8AircraftCommand(const std::vector<std::string> &tokens, CSLPackage
 bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &package, const string& path, int lineNum, const string& line)
 {
 	// OBJ8 <group> <animate YES|NO> <filename>
-	if (tokens.size() != 4)
+	if (tokens.size() < 4)
 	{
-		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8_AIRCARFT command takes 1 argument.\n";
+		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8 command takes 3 arguments.\n";
+        return false;
 	}
+    if (tokens.size() > 4)
+        XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " INFO: OBJ8 command takes only 3 arguments, rest ignored.\n";
 
 	// err - obj8 record at stupid place in file
 	if(package.planes.empty() || package.planes.back().plane_type != plane_Obj8) return false;
