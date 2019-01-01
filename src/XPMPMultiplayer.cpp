@@ -100,6 +100,12 @@ static	int				XPMPControlPlaneCount(
 		int                  inIsBefore,
 		void *               inRefcon);
 
+// This drawing hook is called during 2D UI drawing for drawing the a/c labels.
+// Their 2D coordinates had been calculated in
+static  int             XPMPDrawPlaneLabels(
+        XPLMDrawingPhase     inPhase,
+        int                  inIsBefore,
+        void *               inRefcon);
 
 #ifdef DEBUG_GL
 static void xpmpKhrDebugProc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *param)
@@ -241,7 +247,11 @@ const char * 	XPMPMultiplayerInit(
 	if ( !XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
 							 xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */))
         problem=true;
-/*** END OF CHANGE ***/
+    
+    // Register the label drawing func.
+    if ( !XPLMRegisterDrawCallback(XPMPDrawPlaneLabels,
+                                   xplm_Phase_Window, 1 /*before*/, 0 /* refcon */))
+        problem=true;
 
 	if (problem)		return "There were problems initializing " XPMP_CLIENT_LONGNAME ".  Please examine X-Plane's error.out file for detailed information.";
 	else 				return "";
@@ -252,6 +262,7 @@ void XPMPMultiplayerCleanup(void)
 	XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 0, 0);
 	XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 1, (void *) -1);
 	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
+    XPLMUnregisterDrawCallback(XPMPDrawPlaneLabels,   xplm_Phase_Window, 1, 0)
 	OGLDEBUG(glDebugMessageCallback(NULL, NULL));
 }
 
@@ -737,6 +748,17 @@ int	XPMPRenderMultiplayerPlanes(
 		is_blend = 1 - is_blend;
 	return 1;
 }
+
+int XPMPDrawPlaneLabels(
+        XPLMDrawingPhase     /* inPhase */,
+        int                  /* inIsBefore */,
+        void *               /* inRefcon */)
+{
+    if (!gRenderer)
+        XPMPDefaultLabelWriter();
+    return 1;
+}
+
 
 bool			XPMPIsICAOValid(
 		const char *				inICAO)

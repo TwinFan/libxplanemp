@@ -91,6 +91,7 @@ typedef	struct {
 	float	roll;
 	float	heading;
 	char label[32];
+    float   label_color[4] = {1, 1, 0, 1};  // label base color
 } XPMPPlanePosition_t;
 
 

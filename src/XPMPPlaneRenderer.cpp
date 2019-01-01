@@ -248,8 +248,13 @@ struct	PlaneToRender_t {
 	bool					tcas;		// Are we visible on TCAS?
 	XPLMPlaneDrawState_t	state;		// Flaps, gear, etc.
 	float					dist;
+    float                   x_2d, y_2d; // 2D coordinates, e.g. for labels
 };
 typedef	std::map<float, PlaneToRender_t>	RenderMap;
+
+// Planes - sorted by distance so we can do the closest N and bail
+// Need to keep this globally as we access it in 3D- and 2D-callbacks
+RenderMap                        myPlanes;
 
 
 void			XPMPDefaultPlaneRenderer(int is_blend)
@@ -290,7 +295,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	XPLMCountAircraft(&modelCount, &active, &plugin);
 	tcas = modelCount - 1;	// This is how many tcas blips we can have!
 
-	RenderMap						myPlanes;		// Planes - sorted by distance so we can do the closest N and bail
+	myPlanes.clear();		// Planes - sorted by distance so we can do the closest N and bail
 	
 	/************************************************************************************
 	 * CULLING AND STATE CALCULATION LOOP
@@ -644,22 +649,17 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 			glPushMatrix();
 			glLoadIdentity();
 
-			float c[4] = { 1, 1, 0, 1 };
-
-
 			for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
-				if(iter->first < labelDist)
-					if(!iter->second.cull)		// IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
+                if(iter->first < labelDist) {
+                    PlaneToRender_t& ptr = iter->second;
+					if(!ptr.cull)		    // IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
 					{
-						float x, y;
-						convert_to_2d(&gl_camera, vp, iter->second.x, iter->second.y, iter->second.z, 1.0, &x, &y);
-
-						float rat = 1.0f - (iter->first / static_cast<float>(labelDist));
-						c[0] = c[1] = 0.5f + 0.5f * rat;
-						c[2] = 0.5f - 0.5f * rat;		// gray -> yellow - no alpha in the SDK - foo!
-
-						XPLMDrawString(c, static_cast<int>(x), static_cast<int>(y)+10, (char *) iter->second.plane->pos.label, NULL, xplmFont_Basic);
+						// convert 3D coordinates to 2D coordinates and save
+                        // them for the 2D drawing callback later
+						convert_to_2d(&gl_camera, vp, ptr.x, ptr.y, ptr.z, 1.0,
+                                      &ptr.x_2d, &ptr.y_2d);
 					}
+                }
 
 			glMatrixMode(GL_PROJECTION);
 			glPopMatrix();
@@ -678,6 +678,60 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 	// finally, cleanup textures.
 	OBJ_MaintainTextures();
+}
+
+// separate function for label writing in a 2D-drawing phase
+// the drawing coordinates have been calculated and saved in XPMPDefaultPlaneRenderer
+// already, so this here is just dumb writing
+void XPMPDefaultLabelWriter()
+{
+    // shall we draw labels at all?
+    if(gDrawLabels )
+    {
+        // Mandatory: We *must* set the OpenGL state before drawing
+        // (we can't make any assumptions about it)
+        XPLMSetGraphicsState(0 /* no fog */,
+                             0 /* 0 texture units */,
+                             0 /* no lighting */,
+                             0 /* no alpha testing */,
+                             1 /* do alpha blend */,
+                             1 /* do depth testing */,
+                             0 /* no depth writing */
+                             );
+        
+        XPLMCameraPosition_t x_camera;
+        XPLMReadCameraPosition(&x_camera);    // only for zoom!
+        const double    maxDist = XPLMGetDataf(gVisDataRef);
+        const double  labelDist = min(maxDist, MAX_LABEL_DIST) * x_camera.zoom;        // Labels get easier to see when users zooms.
+        
+        // loop over all planes, that have (likely) been drawn in the 3D run
+        for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter) {
+            if(iter->first < labelDist) {
+                PlaneToRender_t& ptr = iter->second;
+                if(!ptr.cull)            // IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
+                {
+                    // base color can be defined per plane
+                    // rat is between 0.0 (plane very close) and 1.0 (shortly before label cut-off):
+                    // and defines how much we move towards light gray for distance
+                    const float rat = iter->first / static_cast<float>(labelDist);
+                    constexpr float gray[4] = {0.6f, 0.6f, 0.6f, 1.0f};
+                    float color[4] = {
+                        (1.0f-rat) * ptr.plane->pos.label_color[0] + rat * gray[0],     // red
+                        (1.0f-rat) * ptr.plane->pos.label_color[1] + rat * gray[1],     // green
+                        (1.0f-rat) * ptr.plane->pos.label_color[2] + rat * gray[2],     // blue
+                        (1.0f-rat) * ptr.plane->pos.label_color[3] + rat * gray[3]      // ? (not used for text)
+                    };
+                    
+                    // actual text drawing
+                    XPLMDrawString(color,
+                                   static_cast<int>(ptr.x_2d),
+                                   static_cast<int>(ptr.y_2d)+10,
+                                   ptr.plane->pos.label,
+                                   NULL, xplmFont_Basic);
+                } // if not culled
+            } // if below labelDist
+        } // for all planes
+    } // if(gDrawLabels )
 }
 
 void XPMPEnableAircraftLabels()
