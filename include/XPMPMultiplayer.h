@@ -620,6 +620,10 @@ void				  XPMPEnableAircraftLabels(void);
 void				  XPMPDisableAircraftLabels(void);
 
 bool				  XPMPDrawingAircraftLabels(void);
+    
+// to correct coordinates when SSAA is active.
+// The value 'renopt_HDR_antial' is found in X-Plane.prf
+void                  XPMPSetLabelSSAACorrection(int renopt_HDR_antial);
 
 #ifdef __cplusplus
 }

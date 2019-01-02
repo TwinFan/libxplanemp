@@ -71,6 +71,20 @@ std::vector<XPLMDataRef>			gMultiRef_Z;
 
 bool gDrawLabels = true;
 
+// defines how much SSAA is in use:
+// 2 = 2x, 3 = 4x, 4 = 4x, 5 = 8x
+int renopt_HDR_antial = 0;
+
+// defines the factor to apply for x- and y-coordinates based on renopt_HDR_antial:
+const struct {
+    float x, y;
+} coord_SSAA_fact[6] = {
+    { 1.0f,  1.0f }, { 1.0f, 1.0f },    // 0, 1: 0x
+    { 1.0f,  0.5f },                    // 2:    2x
+    { 0.5f,  0.5f }, { 0.5f, 0.5f },    // 3, 4: 4x
+    { 0.5f,  0.25f}                     // 5:    8x
+};
+
 struct cull_info_t {					// This struct has everything we need to cull fast!
 	float	model_view[16];				// The model view matrix, to get from local OpenGL to eye coordinates.
 	float	proj[16];					// Proj matrix - this is just a hack to use for gluProject.
@@ -639,17 +653,8 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 		{
 			GLfloat	vp[4];
 			glGetFloatv(GL_VIEWPORT,vp);
-
-			glMatrixMode(GL_PROJECTION);
-			glPushMatrix();
-			glLoadIdentity();
-			glOrtho(0, vp[2], 0, vp[3], -1, 1);
-
-			glMatrixMode(GL_MODELVIEW);
-			glPushMatrix();
-			glLoadIdentity();
-
-			for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
+            
+            for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
                 if(iter->first < labelDist) {
                     PlaneToRender_t& ptr = iter->second;
 					if(!ptr.cull)		    // IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
@@ -658,14 +663,14 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
                         // them for the 2D drawing callback later
 						convert_to_2d(&gl_camera, vp, ptr.x, ptr.y, ptr.z, 1.0,
                                       &ptr.x_2d, &ptr.y_2d);
+                        // with SSAA enabled the coordinates are off by a factor
+                        // correct that
+                        if (2 <= renopt_HDR_antial && renopt_HDR_antial <= 5) {
+                            ptr.x_2d *= coord_SSAA_fact[renopt_HDR_antial].x;
+                            ptr.y_2d *= coord_SSAA_fact[renopt_HDR_antial].y;
+                        }
 					}
                 }
-
-			glMatrixMode(GL_PROJECTION);
-			glPopMatrix();
-			glMatrixMode(GL_MODELVIEW);
-			glPopMatrix();
-
 		}
 
 	
@@ -749,3 +754,8 @@ bool XPMPDrawingAircraftLabels()
 	return gDrawLabels;
 }
 
+void XPMPSetLabelSSAACorrection(int _renopt_HDR_antial)
+{
+    if (0 <= _renopt_HDR_antial && _renopt_HDR_antial <= 5)
+        renopt_HDR_antial = _renopt_HDR_antial;
+}
