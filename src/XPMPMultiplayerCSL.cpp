@@ -23,6 +23,7 @@
 
 #include "XPMPMultiplayerCSL.h"
 #include "XPLMUtilities.h"
+#include "XPLMPlugin.h"
 #include "XPMPMultiplayerObj.h"
 #include "XStringUtils.h"
 #include "XOGLUtils.h"
@@ -76,6 +77,18 @@ struct CFSmartPtr {
 
 int Posix2HFSPath(const char *path, char *result, int resultLen)
 {
+    // if XPlane is configured to use native paths we skip conversion
+    // and just copy the path over
+    if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS")) {
+        if (result != path) {
+            std::strncpy(result, path, resultLen);
+            // success if result buffer was large enough
+            // std::strnpy fills up with 0 so we can test tthat
+            return result[resultLen-1] == 0 ? 0 : -1;
+        }
+        return 0;
+    }
+    
 	CFSmartPtr<CFStringRef>		inStr(CFStringCreateWithCString(kCFAllocatorDefault, path ,kCFStringEncodingMacRoman));
 	if (inStr == NULL) return -1;
 	
@@ -93,6 +106,18 @@ int Posix2HFSPath(const char *path, char *result, int resultLen)
 
 int HFS2PosixPath(const char *path, char *result, int resultLen)
 {
+    // if XPlane is configured to use native paths we skip conversion
+    // and just copy the path over
+    if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS")) {
+        if (result != path) {
+            std::strncpy(result, path, resultLen);
+            // success if result buffer was large enough
+            // std::strnpy fills up with 0 so we can test tthat
+            return result[resultLen-1] == 0 ? 0 : -1;
+        }
+        return 0;
+    }
+    
 	bool is_dir = (path[strlen(path)-1] == ':');
 
 	CFSmartPtr<CFStringRef>		inStr(CFStringCreateWithCString(kCFAllocatorDefault, path ,kCFStringEncodingMacRoman));
