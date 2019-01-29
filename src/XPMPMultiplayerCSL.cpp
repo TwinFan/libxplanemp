@@ -1109,31 +1109,30 @@ CSLPlane_t *	CSL_MatchPlane(const char * inICAO, const char * inAirline, const c
 			}			
 		}
 
-
-		if (kUseLivery[n]) {
-			if (livery == "") {
-				if (gIntPrefsFunc("debug", "model_matching", 0)) {
-					sprintf(buf, XPMP_CLIENT_NAME " MATCH -    Skipping %d Due Absent Livery\n", n);
-					XPLMDebugString(buf);
-				}
-				continue;
-			}
-			key += " ";
-			key += airline;
-			key += " ";
-			key += livery;
-		}
-		if (kUseAirline[n]) {
-			if (airline == "") {
-				if (gIntPrefsFunc("debug", "model_matching", 0)) {
-					sprintf(buf, XPMP_CLIENT_NAME " MATCH -    Skipping %d Due Absent Airline\n", n);
-					XPLMDebugString(buf);
-				}
-				continue;
-			}
-			key += " ";
-			key += airline;
-		}
+        
+        if (kUseAirline[n]) {
+            if (airline == "") {
+                if (gIntPrefsFunc("debug", "model_matching", 0)) {
+                    sprintf(buf, XPMP_CLIENT_NAME " MATCH -    Skipping %d Due Absent Airline\n", n);
+                    XPLMDebugString(buf);
+                }
+                continue;
+            }
+            key += " ";
+            key += airline;
+        }
+        
+        if (kUseLivery[n]) {
+            if (livery == "") {
+                if (gIntPrefsFunc("debug", "model_matching", 0)) {
+                    sprintf(buf, XPMP_CLIENT_NAME " MATCH -    Skipping %d Due Absent Livery\n", n);
+                    XPLMDebugString(buf);
+                }
+                continue;
+            }
+            key += " ";
+            key += livery;
+        }
 
 		if (gIntPrefsFunc("debug", "model_matching", 0))
 		{
