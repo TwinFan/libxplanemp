@@ -871,13 +871,13 @@ void CSL_DefaultVertOffset(CSLPackage_t& package)
                     equip[2] == 'T' ? EQUIP_TURBO : EQUIP_OTHER;
     
                     plane.vertOffset =
-                    nEng > 4 ?                          5.5 :   // large planes
-                    nEng == 3 && eType == EQUIP_JET ?   5   :   // 3 engine jets
-                    nEng == 3 ?                         3   :   // other 3 engine planes
-                    nEng == 2 && eType == EQUIP_JET ?   3.5 :   // 2 engine jets
-                    nEng == 2 && eType == EQUIP_TURBO ? 1.7 :   // 2 engine turbo props
-                    nEng == 2 ?                         1.5 :   // other 2 engine planes
-                                                        1.2;    // default, covers small planes
+                    nEng > 4 ?                          5.5f :   // large planes
+                    nEng == 3 && eType == EQUIP_JET ?   5.0f :   // 3 engine jets
+                    nEng == 3 ?                         3.0f :   // other 3 engine planes
+                    nEng == 2 && eType == EQUIP_JET ?   3.5f :   // 2 engine jets
+                    nEng == 2 && eType == EQUIP_TURBO ? 1.7f :   // 2 engine turbo props
+                    nEng == 2 ?                         1.5f :   // other 2 engine planes
+                                                        1.2f;    // default, covers small planes
                 }
             }
         }
