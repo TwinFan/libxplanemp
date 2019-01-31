@@ -4,7 +4,12 @@
 
 # Build directory
 build/
- 
+build-lin/
+build-win/
+build-mac/
+CMakeFiles/
+CMakeCache.txt
+
 # XCode user specific files
 xcuserdata/
 *.xcworkspace/
