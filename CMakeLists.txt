@@ -16,6 +16,9 @@ if(XPMP_DEBUG_OPENGL)
 	set(XPMP_DEFINES ${XPMP_DEFINES} DEBUG_GL=1)
 endif()
 
+# Always use position-independent code and highest optimization level (FPS!).
+add_compile_options(-O3 -fPIC)
+
 if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	set(XPMP_DEFINES ${XPMP_DEFINES} LIN=1)
 	#set(XPMP_PLATFORM_SOURCES
@@ -54,7 +57,7 @@ add_library(xplanemp
 	src/XPMPPlaneRenderer.cpp
 	src/XUtils.cpp)
 target_include_directories(xplanemp
-	PUBLIC 
+	PUBLIC
 		${ADDITIONAL_INCLUDES}
 		${XPSDK_INCLUDE_DIRS}
 		${CMAKE_CURRENT_SOURCE_DIR}/include
