@@ -22,8 +22,8 @@
  */
 
 #include "XPMPMultiplayerCSL.h"
+#include "XPMPMultiplayerCSLOffset.h"
 #include "XPLMUtilities.h"
-#include "XPLMPlugin.h"
 #include "XPMPMultiplayerObj.h"
 #include "XStringUtils.h"
 #include "XOGLUtils.h"
@@ -42,6 +42,7 @@ using std::max;
 
 #if APL
 #include <Carbon/Carbon.h>
+#include "XPLMPlugin.h"
 #endif
 
 // Set this to 1 to get TONS of diagnostics on what the lib is doing.
@@ -77,18 +78,6 @@ struct CFSmartPtr {
 
 int Posix2HFSPath(const char *path, char *result, int resultLen)
 {
-    // if XPlane is configured to use native paths we skip conversion
-    // and just copy the path over
-    if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS")) {
-        if (result != path) {
-            std::strncpy(result, path, resultLen);
-            // success if result buffer was large enough
-            // std::strnpy fills up with 0 so we can test tthat
-            return result[resultLen-1] == 0 ? 0 : -1;
-        }
-        return 0;
-    }
-    
 	CFSmartPtr<CFStringRef>		inStr(CFStringCreateWithCString(kCFAllocatorDefault, path ,kCFStringEncodingMacRoman));
 	if (inStr == NULL) return -1;
 	
@@ -106,18 +95,6 @@ int Posix2HFSPath(const char *path, char *result, int resultLen)
 
 int HFS2PosixPath(const char *path, char *result, int resultLen)
 {
-    // if XPlane is configured to use native paths we skip conversion
-    // and just copy the path over
-    if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS")) {
-        if (result != path) {
-            std::strncpy(result, path, resultLen);
-            // success if result buffer was large enough
-            // std::strnpy fills up with 0 so we can test tthat
-            return result[resultLen-1] == 0 ? 0 : -1;
-        }
-        return 0;
-    }
-    
 	bool is_dir = (path[strlen(path)-1] == ':');
 
 	CFSmartPtr<CFStringRef>		inStr(CFStringCreateWithCString(kCFAllocatorDefault, path ,kCFStringEncodingMacRoman));
@@ -508,22 +485,29 @@ bool ParseObj8AircraftCommand(const std::vector<std::string> &tokens, CSLPackage
 	// OBJ8_AIRCRAFT <path>
 	if (tokens.size() != 2)
 	{
-		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8_AIRCARFT command takes 1 argument.\n";
+		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8_AIRCRAFT command takes 1 argument.\n";
 	}
 
 	package.planes.push_back(CSLPlane_t());
+	package.planes.back().dirNames = { package.path.substr(package.path.find_last_of('/') + 1) };
+	package.planes.back().objectName = tokens[1];
 	package.planes.back().plane_type = plane_Obj8;
 	package.planes.back().file_path = tokens[1];
 	package.planes.back().moving_gear = true;
 	package.planes.back().texID = 0;
 	package.planes.back().texLitID = 0;
 	package.planes.back().obj_idx = -1;
+#if DEBUG_CSL_LOADING
+	XPLMDebugString("      Got OBJ8 Airplane: ");
+	XPLMDebugString(tokens[1].c_str());
+	XPLMDebugString("\n");
+#endif
 	return true;
 }
 
 bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &package, const string& path, int lineNum, const string& line)
 {
-	// OBJ8 <group> <animate YES|NO> <filename>
+	// OBJ8 <group> <animate YES|NO> <filename> {<texture filename> {<lit texture filename>}}
 	if (tokens.size() < 4)
 	{
 		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8 command takes 3 arguments.\n";
@@ -537,18 +521,17 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 
 	obj_for_acf		att;
 
-	if(tokens[1] == "GLASS")
-		att.draw_type = draw_glass;
-	else if(tokens[1] == "LIGHTS")
+	att.load_state = load_none;
+
+
+	if(tokens[1] == "LIGHTS")
 		att.draw_type = draw_lights;
-	else if(tokens[1] == "LOW_LOD")
-		att.draw_type = draw_low_lod;
-	else if(tokens[1] == "SOLID")
+	if(tokens[1] == "SOLID")
 		att.draw_type = draw_solid;
 	else {
 		// err crap enum
+		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: valid OBJ8 part types are LIGHTS or SOLID.  Got " << tokens[1] << ".\n";
 	}
-
 	if(tokens[2] == "YES")
 		att.needs_animation = true;
 	else if(tokens[2] == "NO")
@@ -560,7 +543,6 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 
 	string relativePath = tokens[3];
 	MakePartialPathNativeObj(relativePath);
-	//! \todo Fill in Obj8 model name information
 	string absolutePath(relativePath);
 	if (!DoPackageSub(absolutePath))
 	{
@@ -572,7 +554,8 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 	XPLMGetSystemPath(xsystem);
 
 #if APL
-	HFS2PosixPath(xsystem, xsystem, 1024);
+	if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS") == 0)
+		HFS2PosixPath(xsystem, xsystem, 1024);
 #endif
 
 	size_t sys_len = strlen(xsystem);
@@ -585,9 +568,24 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 
 	att.handle = NULL;
 	att.file = absolutePath;
-
 	package.planes.back().attachments.push_back(att);
+	return true;
+}
 
+bool ParseVertOffsetCommand(const std::vector<std::string> &tokens, CSLPackage_t &package, const string& path, int lineNum, const string& line)
+{
+	// VERT_OFFSET
+	// this is the csl-model vertical offset for accurately putting planes onto the ground.
+	if (tokens.size() != 2) 
+	{
+		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET command takes 1 argument.\n";
+		return false;
+	}
+	else 
+	{
+			package.planes.back().xsbVertOffset = atof(tokens[1].c_str());
+			package.planes.back().isXsbVertOffsetAvail = true;
+	}
 	return true;
 }
 
@@ -710,29 +708,6 @@ bool ParseLiveryCommand(const std::vector<std::string> &tokens, CSLPackage_t &pa
 	return true;
 }
 
-bool ParseVertOffsetCommand(const std::vector<std::string> & tokens,
-                            CSLPackage_t& package,
-                            const string& path, int lineNum, const string& line)
-{
-    // VERT_OFFSET <offset.decimal>
-    if (tokens.size() != 2)
-    {
-        XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET command takes one argument: the offset.\n";
-        return false;
-    }
-    
-    // just try converting to float, then some sanity checks
-    float vertOffset = (float)atof(tokens[1].c_str());
-    if (vertOffset < -30 || vertOffset > 30) {
-        // offset of more than 30m seems a bit unlikely...
-        XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET of more than 30m ignored.\n";
-    }
-    
-    // save vertical offset to current plane
-    package.planes.back().vertOffset = vertOffset;
-    return true;
-}
- 
 bool ParseDummyCommand(const std::vector<std::string> & /* tokens */, CSLPackage_t & /* package */, const string& /* path */, int /*lineNum*/, const string& /*line*/)
 {
 	return true;
@@ -798,13 +773,11 @@ void ParseFullPackage(const std::string &content, CSLPackage_t &package)
 		{ "AIRCRAFT", &ParseAircraftCommand },
 		{ "OBJ8_AIRCRAFT", &ParseObj8AircraftCommand },
 		{ "OBJ8", &ParseObj8Command },
+		{ "VERT_OFFSET", &ParseVertOffsetCommand},
 		{ "HASGEAR", &ParseHasGearCommand },
 		{ "ICAO", &ParseIcaoCommand },
 		{ "AIRLINE", &ParseAirlineCommand },
 		{ "LIVERY", &ParseLiveryCommand },
-/*** INSERTED by TwinFan ***/
-        { "VERT_OFFSET", &ParseVertOffsetCommand },
-/*** END OF INSERT ***/
 	};
 
 	stringstream sin(content);
@@ -849,39 +822,6 @@ bool isPackageAlreadyLoaded(const std::string &packagePath)
 		}
 	}
 	return alreadyLoaded;
-}
-
-// Assign reasonable default values for vertOffset based on Doc8643
-void CSL_DefaultVertOffset(CSLPackage_t& package)
-{
-    // loop over plane in package
-    for (CSLPlane_t& plane: package.planes) {
-        // no vertOffset read from file?
-        if (plane.vertOffset <= 0) {
-            // lookup categorization in Doc8643
-            map<string, CSLAircraftCode_t>::const_iterator iterAcCodes =
-            gAircraftCodes.find(plane.icao);
-            if (iterAcCodes != gAircraftCodes.cend()) {
-                // found an Doc8643 element
-                const std::string& equip = iterAcCodes->second.equip;
-                if (equip.size() == 3) {
-                    int nEng = equip[1] - '0';          // number of engines
-                    enum { EQUIP_OTHER, EQUIP_JET, EQUIP_TURBO } eType =
-                    equip[2] == 'J' ? EQUIP_JET :       // type of engines
-                    equip[2] == 'T' ? EQUIP_TURBO : EQUIP_OTHER;
-    
-                    plane.vertOffset =
-                    nEng > 4 ?                          5.5f :   // large planes
-                    nEng == 3 && eType == EQUIP_JET ?   5.0f :   // 3 engine jets
-                    nEng == 3 ?                         3.0f :   // other 3 engine planes
-                    nEng == 2 && eType == EQUIP_JET ?   3.5f :   // 2 engine jets
-                    nEng == 2 && eType == EQUIP_TURBO ? 1.7f :   // 2 engine turbo props
-                    nEng == 2 ?                         1.5f :   // other 2 engine planes
-                                                        1.2f;    // default, covers small planes
-                }
-            }
-        }
-    }
 }
 
 // This routine loads the related.txt file and also all packages.
@@ -985,7 +925,14 @@ bool CSL_LoadCSL(const char * inFolderPath, const char * inRelatedFile, const ch
 	char folder[1024];
 
 #if APL
-	Posix2HFSPath(inFolderPath, folder, sizeof(folder));
+	if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS") == 0)
+	{
+		Posix2HFSPath(inFolderPath, folder, sizeof(folder));
+	}
+	else
+	{
+		strcpy(folder, inFolderPath);
+	}
 #else
 	strcpy(folder,inFolderPath);
 #endif
@@ -1040,8 +987,6 @@ bool CSL_LoadCSL(const char * inFolderPath, const char * inRelatedFile, const ch
 			packageFile += "xsb_aircraft.txt";
 			std::string packageContent = GetFileContent(packageFile);
 			ParseFullPackage(packageContent, package);
-            // assign default values for vertOffset
-            CSL_DefaultVertOffset(package);
 		}
 	}
 
@@ -1328,6 +1273,7 @@ void	CSL_Dump(void)
 
 int				CSL_GetOGLIndex(CSLPlane_t *		model)
 {
+
 	switch(model->plane_type) {
 	case plane_Austin:
 		return model->austin_idx;

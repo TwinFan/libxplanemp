@@ -43,6 +43,14 @@
  */
 bool			CSL_Init(
 		const char* inTexturePath);
+
+/*
+ * CSL_DeInit
+ * 
+ * This routine performs cleanup on loaded CSL objects
+ */
+void			CSL_DeInit();
+
 /*
  * CSL_LoadCSL
  *

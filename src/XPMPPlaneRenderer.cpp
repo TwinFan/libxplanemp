@@ -24,6 +24,7 @@
 #include "XPMPPlaneRenderer.h"
 #include "XPMPMultiplayer.h"
 #include "XPMPMultiplayerCSL.h"
+#include "XPMPMultiplayerCSLOffset.h"
 #include "XPMPMultiplayerVars.h"
 #include "XPMPMultiplayerObj.h"
 #include "XPMPMultiplayerObj8.h"
@@ -64,26 +65,13 @@
 // that we can barely see.  Cut labels at 5 km.
 #define		MAX_LABEL_DIST			5000.0
 
+extern bool	gHasControlOfAIAircraft;
 
 std::vector<XPLMDataRef>			gMultiRef_X;
 std::vector<XPLMDataRef>			gMultiRef_Y;
 std::vector<XPLMDataRef>			gMultiRef_Z;
 
 bool gDrawLabels = true;
-
-// defines how much SSAA is in use:
-// 2 = 2x, 3 = 4x, 4 = 4x, 5 = 8x
-int renopt_HDR_antial = 0;
-
-// defines the factor to apply for x- and y-coordinates based on renopt_HDR_antial:
-const struct {
-    float x, y;
-} coord_SSAA_fact[6] = {
-    { 1.0f,  1.0f }, { 1.0f, 1.0f },    // 0, 1: 0x
-    { 1.0f,  0.5f },                    // 2:    2x
-    { 0.5f,  0.5f }, { 0.5f, 0.5f },    // 3, 4: 4x
-    { 0.5f,  0.25f}                     // 5:    8x
-};
 
 struct cull_info_t {					// This struct has everything we need to cull fast!
 	float	model_view[16];				// The model view matrix, to get from local OpenGL to eye coordinates.
@@ -96,12 +84,43 @@ struct cull_info_t {					// This struct has everything we need to cull fast!
 	float	top_clip[4];
 };
 
+static bool				gCullInfoInitialised = false;
+static XPLMDataRef		projectionMatrixRef = nullptr;
+static XPLMDataRef		modelviewMatrixRef = nullptr;
+static XPLMDataRef		viewportRef = nullptr;
+
+bool					gMSAAHackInitialised = false;
+static XPLMDataRef  	gMSAAXRatioRef = nullptr;
+static XPLMDataRef		gMSAAYRatioRef = nullptr;
+
+static void
+init_cullinfo()
+{
+	modelviewMatrixRef = XPLMFindDataRef("sim/graphics/view/modelview_matrix");
+	projectionMatrixRef = XPLMFindDataRef("sim/graphics/view/projection_matrix");
+	viewportRef = XPLMFindDataRef("sim/graphics/view/viewport");
+	gCullInfoInitialised = true;
+}
+
+
 static void setup_cull_info(cull_info_t * i)
 {
-	// First, just read out the current OpenGL matrices...do this once at setup because it's not the fastest thing to do.
-	glGetFloatv(GL_MODELVIEW_MATRIX ,i->model_view);
-	glGetFloatv(GL_PROJECTION_MATRIX,i->proj);
-	
+	if (!gCullInfoInitialised) {
+		init_cullinfo();
+	}
+	// First, just read out the current OpenGL matrices...do this once at setup
+	// because it's not the fastest thing to do.
+	//
+	// if our X-Plane version supports it, pull it from the daatrefs to avoid a
+	// potential driver stall.
+	if (!modelviewMatrixRef || !projectionMatrixRef) {
+		glGetFloatv(GL_MODELVIEW_MATRIX, i->model_view);
+		glGetFloatv(GL_PROJECTION_MATRIX, i->proj);
+	} else {
+		XPLMGetDatavf(modelviewMatrixRef, i->model_view, 0, 16);
+		XPLMGetDatavf(projectionMatrixRef, i->proj, 0, 16);
+	}
+
 	// Now...what the heck is this?  Here's the deal: the clip planes have values in "clip" coordinates of: Left = (1,0,0,1)
 	// Right = (-1,0,0,1), Bottom = (0,1,0,1), etc.  (Clip coordinates are coordinates from -1 to 1 in XYZ that the driver
 	// uses.  The projection matrix converts from eye to clip coordinates.)
@@ -160,7 +179,7 @@ static float sphere_distance_sqr(const cull_info_t * i, float x, float y, float 
 	return xp*xp+yp*yp+zp*zp;
 }
 
-static void convert_to_2d(const cull_info_t * i, const float * vp, float x, float y, float z, float w, float * out_x, float * out_y)
+static void convert_to_2d(const cull_info_t * i, const int * vp, float x, float y, float z, float w, float * out_x, float * out_y)
 {
 	float xe = x * i->model_view[0] + y * i->model_view[4] + z * i->model_view[ 8] + w * i->model_view[12];
 	float ye = x * i->model_view[1] + y * i->model_view[5] + z * i->model_view[ 9] + w * i->model_view[13];
@@ -176,8 +195,8 @@ static void convert_to_2d(const cull_info_t * i, const float * vp, float x, floa
 	yc /= wc;
 	//	zc /= wc;
 
-	*out_x = vp[0] + (1.0f + xc) * vp[2] / 2.0f;
-	*out_y = vp[1] + (1.0f + yc) * vp[3] / 2.0f;
+	*out_x = static_cast<float>(vp[0]) + (1.0f + xc) * static_cast<float>(vp[2]) / 2.0f;
+	*out_y = static_cast<float>(vp[1]) + (1.0f + yc) * static_cast<float>(vp[3]) / 2.0f;
 }
 
 
@@ -198,11 +217,18 @@ static	int		gOBJPlanes = 0;			// Number of our OBJ planes we drew in full
 static	XPLMDataRef		gVisDataRef = NULL;		// Current air visiblity for culling.
 static	XPLMDataRef		gAltitudeRef = NULL;	// Current aircraft altitude (for TCAS)
 
+static XPLMProbeRef terrainProbe = NULL; // Probe to probe where the ground is for clamping
+
 
 void			XPMPInitDefaultPlaneRenderer(void)
 {
+	terrainProbe = XPLMCreateProbe(xplm_ProbeY);
+	
 	// SETUP - mostly just fetch datarefs.
 
+	if (!gCullInfoInitialised) {
+		init_cullinfo();
+	}
 	gVisDataRef = XPLMFindDataRef("sim/graphics/view/visibility_effective_m");
 	if (gVisDataRef == NULL) gVisDataRef = XPLMFindDataRef("sim/weather/visibility_effective_m");
 	if (gVisDataRef == NULL)
@@ -248,6 +274,30 @@ void			XPMPInitDefaultPlaneRenderer(void)
 	}
 }
 
+void XPMPDeinitDefaultPlaneRenderer() {
+	XPLMDestroyProbe(terrainProbe);
+}
+
+/* correctYValue returns the clamped Z value given the input X, Y and Z and the
+ * known vertical offset of the aircraft model.
+*/
+double
+correctYValue(double inX, double inY, double inZ, double inModelYOffset)
+{
+	XPLMProbeInfo_t info;
+	info.structSize = sizeof(XPLMProbeInfo_t);
+	XPLMProbeResult res = XPLMProbeTerrainXYZ(terrainProbe,
+		static_cast<float>(inX),
+		static_cast<float>(inY),
+		static_cast<float>(inZ),
+		&info);
+	if (res != xplm_ProbeHitTerrain) {
+		return inY;
+	}
+	double minY = info.locationY + inModelYOffset;
+	return (inY < minY) ? minY : inY;
+}
+
 // PlaneToRender struct: we prioritize planes radially by distance, so...
 // we use this struct to remember one visible plane.  Once we've
 // found all visible planes, we draw the closest ones.
@@ -262,13 +312,8 @@ struct	PlaneToRender_t {
 	bool					tcas;		// Are we visible on TCAS?
 	XPLMPlaneDrawState_t	state;		// Flaps, gear, etc.
 	float					dist;
-    float                   x_2d, y_2d; // 2D coordinates, e.g. for labels
 };
 typedef	std::map<float, PlaneToRender_t>	RenderMap;
-
-// Planes - sorted by distance so we can do the closest N and bail
-// Need to keep this globally as we access it in 3D- and 2D-callbacks
-RenderMap                        myPlanes;
 
 
 void			XPMPDefaultPlaneRenderer(int is_blend)
@@ -288,7 +333,13 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 		}
 		return;
 	}
-	
+
+	if (!gMSAAHackInitialised) {
+		gMSAAHackInitialised = true;
+		gMSAAXRatioRef = XPLMFindDataRef("sim/private/controls/hdr/fsaa_ratio_x");
+		gMSAAYRatioRef = XPLMFindDataRef("sim/private/controls/hdr/fsaa_ratio_y");
+	}
+
 	cull_info_t			gl_camera;
 	setup_cull_info(&gl_camera);
 	XPLMCameraPosition_t x_camera;
@@ -309,7 +360,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	XPLMCountAircraft(&modelCount, &active, &plugin);
 	tcas = modelCount - 1;	// This is how many tcas blips we can have!
 
-	myPlanes.clear();		// Planes - sorted by distance so we can do the closest N and bail
+	RenderMap						myPlanes;		// Planes - sorted by distance so we can do the closest N and bail
 	
 	/************************************************************************************
 	 * CULLING AND STATE CALCULATION LOOP
@@ -346,12 +397,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 			double	x,y,z;
 			XPLMWorldToLocal(pos.lat, pos.lon, pos.elevation * kFtToMeters, &x, &y, &z);
-            
-            // Apply vertical offset to local elevation
-            XPMPPlanePtr pPlane = static_cast<XPMPPlanePtr>(id);
-            if (pPlane->model)
-                y += pPlane->model->vertOffset;
-
+			
 			float distMeters = sqrt(sphere_distance_sqr(&gl_camera,
 														static_cast<float>(x),
 														static_cast<float>(y),
@@ -500,6 +546,18 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 			if (iter->second.plane->model)
 			{
+				// always check for the offset since we need it in multiple places.
+				cslVertOffsetCalc.findOrUpdateActualVertOffset(*iter->second.plane->model);
+				if (iter->second.plane->pos.offsetScale > 0.0f) {
+					iter->second.y += iter->second.plane->pos.offsetScale * iter->second.plane->model->actualVertOffset;
+				}
+				if (iter->second.plane->pos.clampToGround || (gIntPrefsFunc("planes", "clamp_all_to_ground", 0) != 0)) {
+					//correct y value by real terrain elevation
+					//find or update the actual vert offset in the csl model data
+					cslVertOffsetCalc.findOrUpdateActualVertOffset(*iter->second.plane->model);
+					iter->second.y = correctYValue(
+						iter->second.x, iter->second.y, iter->second.z, iter->second.plane->model->actualVertOffset);
+				}
 				if (iter->second.plane->model->plane_type == plane_Austin)
 				{
 					planes_austin.insert(multimap<int, PlaneToRender_t *>::value_type(CSL_GetOGLIndex(iter->second.plane->model), &iter->second));
@@ -540,7 +598,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 		}
 
 		// TCAS handling - if the plane needs to be drawn on TCAS and we haven't yet, move one of Austin's planes.
-		if (iter->second.tcas && renderedCounter < gMultiRef_X.size())
+		if (iter->second.tcas && renderedCounter < gMultiRef_X.size() && gHasControlOfAIAircraft)
 		{
 			XPLMSetDataf(gMultiRef_X[renderedCounter], iter->second.x);
 			XPLMSetDataf(gMultiRef_Y[renderedCounter], iter->second.y);
@@ -550,8 +608,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	}
 	
 	// PASS 1 - draw Austin's planes.
-
-	if(!is_blend)
+	if(gHasControlOfAIAircraft && !is_blend)
 		for (planeMapIter = planes_austin.begin(); planeMapIter != planes_austin.end(); ++planeMapIter)
 		{
 			CSL_DrawObject(	planeMapIter->second->plane,
@@ -643,34 +700,77 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 			}
 		}
 	
-	if(is_blend)
-		obj_draw_translucent();
 	obj_draw_done();
 	
 	// PASS 4 - Labels
 	if(is_blend)
 		if ( gDrawLabels )
 		{
-			GLfloat	vp[4];
-			glGetFloatv(GL_VIEWPORT,vp);
-            
-            for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
-                if(iter->first < labelDist) {
-                    PlaneToRender_t& ptr = iter->second;
-					if(!ptr.cull)		    // IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
+			double	x_scale = 1.0;
+			double	y_scale = 1.0;
+			if (gMSAAXRatioRef) {
+				x_scale = XPLMGetDataf(gMSAAXRatioRef);
+			}
+			if (gMSAAYRatioRef) {
+				y_scale = XPLMGetDataf(gMSAAYRatioRef);
+			}
+
+			GLint	vp[4];
+			if (viewportRef != nullptr) {
+				// sim/graphics/view/viewport	int[4]	n	Pixels	Current OpenGL viewport in device window coordinates.Note thiat this is left, bottom, right top, NOT left, bottom, width, height!!
+				int vpInt[4] = {0,0,0,0};
+				XPLMGetDatavi(viewportRef, vpInt, 0, 4);
+				vp[0] = vpInt[0];
+				vp[1] = vpInt[1];
+				vp[2] = vpInt[2] - vpInt[0];
+				vp[3] = vpInt[3] - vpInt[1];
+			} else {		
+				glGetIntegerv(GL_VIEWPORT, vp);
+			}
+
+			glMatrixMode(GL_PROJECTION);
+			glPushMatrix();
+			glLoadIdentity();
+			glOrtho(0, vp[2], 0, vp[3], -1, 1);
+
+			glMatrixMode(GL_MODELVIEW);
+			glPushMatrix();
+			glLoadIdentity();
+			if (x_scale > 1.0 || y_scale > 1.0) {
+				glScalef(x_scale, y_scale, 1.0);
+			} else {
+				x_scale = 1.0;
+				y_scale = 1.0;
+			}
+
+			for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
+				if(iter->first < labelDist)
+					if(!iter->second.cull)		// IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
 					{
-						// convert 3D coordinates to 2D coordinates and save
-                        // them for the 2D drawing callback later
-						convert_to_2d(&gl_camera, vp, ptr.x, ptr.y, ptr.z, 1.0,
-                                      &ptr.x_2d, &ptr.y_2d);
-                        // with SSAA enabled the coordinates are off by a factor
-                        // correct that
-                        if (2 <= renopt_HDR_antial && renopt_HDR_antial <= 5) {
-                            ptr.x_2d *= coord_SSAA_fact[renopt_HDR_antial].x;
-                            ptr.y_2d *= coord_SSAA_fact[renopt_HDR_antial].y;
-                        }
+						float x, y;
+						convert_to_2d(&gl_camera, vp, iter->second.x, iter->second.y, iter->second.z, 1.0, &x, &y);
+
+                        // base color can be defined per plane
+                        // rat is between 0.0 (plane very close) and 1.0 (shortly before label cut-off):
+                        // and defines how much we move towards light gray for distance
+                        const PlaneToRender_t& ptr = iter->second;
+                        const float rat = iter->first / static_cast<float>(labelDist);
+                        constexpr float gray[4] = {0.6f, 0.6f, 0.6f, 1.0f};
+                        float c[4] = {
+                            (1.0f-rat) * ptr.plane->pos.label_color[0] + rat * gray[0],     // red
+                            (1.0f-rat) * ptr.plane->pos.label_color[1] + rat * gray[1],     // green
+                            (1.0f-rat) * ptr.plane->pos.label_color[2] + rat * gray[2],     // blue
+                            (1.0f-rat) * ptr.plane->pos.label_color[3] + rat * gray[3]      // ? (not used for text)
+                        };
+
+						XPLMDrawString(c, static_cast<int>(x / x_scale), static_cast<int>(y / y_scale)+10, (char *) iter->second.plane->pos.label, NULL, xplmFont_Basic);
 					}
-                }
+
+			glMatrixMode(GL_PROJECTION);
+			glPopMatrix();
+			glMatrixMode(GL_MODELVIEW);
+			glPopMatrix();
+
 		}
 
 	
@@ -683,60 +783,6 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 	// finally, cleanup textures.
 	OBJ_MaintainTextures();
-}
-
-// separate function for label writing in a 2D-drawing phase
-// the drawing coordinates have been calculated and saved in XPMPDefaultPlaneRenderer
-// already, so this here is just dumb writing
-void XPMPDefaultLabelWriter()
-{
-    // shall we draw labels at all?
-    if(gDrawLabels )
-    {
-        // Mandatory: We *must* set the OpenGL state before drawing
-        // (we can't make any assumptions about it)
-        XPLMSetGraphicsState(0 /* no fog */,
-                             0 /* 0 texture units */,
-                             0 /* no lighting */,
-                             0 /* no alpha testing */,
-                             1 /* do alpha blend */,
-                             1 /* do depth testing */,
-                             0 /* no depth writing */
-                             );
-        
-        XPLMCameraPosition_t x_camera;
-        XPLMReadCameraPosition(&x_camera);    // only for zoom!
-        const double    maxDist = XPLMGetDataf(gVisDataRef);
-        const double  labelDist = min(maxDist, MAX_LABEL_DIST) * x_camera.zoom;        // Labels get easier to see when users zooms.
-        
-        // loop over all planes, that have (likely) been drawn in the 3D run
-        for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter) {
-            if(iter->first < labelDist) {
-                PlaneToRender_t& ptr = iter->second;
-                if(!ptr.cull)            // IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
-                {
-                    // base color can be defined per plane
-                    // rat is between 0.0 (plane very close) and 1.0 (shortly before label cut-off):
-                    // and defines how much we move towards light gray for distance
-                    const float rat = iter->first / static_cast<float>(labelDist);
-                    constexpr float gray[4] = {0.6f, 0.6f, 0.6f, 1.0f};
-                    float color[4] = {
-                        (1.0f-rat) * ptr.plane->pos.label_color[0] + rat * gray[0],     // red
-                        (1.0f-rat) * ptr.plane->pos.label_color[1] + rat * gray[1],     // green
-                        (1.0f-rat) * ptr.plane->pos.label_color[2] + rat * gray[2],     // blue
-                        (1.0f-rat) * ptr.plane->pos.label_color[3] + rat * gray[3]      // ? (not used for text)
-                    };
-                    
-                    // actual text drawing
-                    XPLMDrawString(color,
-                                   static_cast<int>(ptr.x_2d),
-                                   static_cast<int>(ptr.y_2d)+10,
-                                   ptr.plane->pos.label,
-                                   NULL, xplmFont_Basic);
-                } // if not culled
-            } // if below labelDist
-        } // for all planes
-    } // if(gDrawLabels )
 }
 
 void XPMPEnableAircraftLabels()
@@ -754,8 +800,3 @@ bool XPMPDrawingAircraftLabels()
 	return gDrawLabels;
 }
 
-void XPMPSetLabelSSAACorrection(int _renopt_HDR_antial)
-{
-    if (0 <= _renopt_HDR_antial && _renopt_HDR_antial <= 5)
-        renopt_HDR_antial = _renopt_HDR_antial;
-}

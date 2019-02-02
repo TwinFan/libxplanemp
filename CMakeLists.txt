@@ -4,6 +4,8 @@ project(xplanemp LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules" ${CMAKE_MODULE_PATH})
 find_package(XPSDK REQUIRED)
 
+# Define my plugin's name
+set(XPMP_DEFINES ${XPMP_DEFINES} XPMP_CLIENT_NAME="LT" XPMP_CLIENT_LONGNAME="LiveTraffic")
 
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(XPMP_DEFINES ${XPMP_DEFINES} DEBUG=1)
@@ -11,7 +13,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
 else()
 	set(XPMP_DEBUG OFF)
 endif()
-# CMAKE_DEPENDENT_OPTION(XPMP_DEBUG_OPENGL "Install OpenGL Debug hooks and debug info" ON "XPMP_DEBUG" OFF)
+option(XPMP_DEBUG_OPENGL "Install OpenGL Debug hooks and debug info" OFF)
 if(XPMP_DEBUG_OPENGL)
 	set(XPMP_DEFINES ${XPMP_DEFINES} DEBUG_GL=1)
 endif()
@@ -51,6 +53,7 @@ add_library(xplanemp
 	src/XPCAircraft.cpp
 	src/XPMPMultiplayer.cpp
 	src/XPMPMultiplayerCSL.cpp
+	src/XPMPMultiplayerCSLOffset.cpp
 	src/XPMPMultiplayerObj8.cpp
 	src/XPMPMultiplayerObj.cpp
 	src/XPMPMultiplayerVars.cpp
@@ -69,6 +72,3 @@ target_link_libraries(xplanemp
 target_compile_definitions(xplanemp PRIVATE ${XPMP_DEFINES} PUBLIC XUTILS_EXCLUDE_MAC_CRAP=1)
 set_property(TARGET xplanemp PROPERTY CXX_STANDARD_REQUIRED 11)
 set_property(TARGET xplanemp PROPERTY CXX_STANDARD 14)
-
-message("CMAKE_CXX_FLAGS_DEBUG is ${CMAKE_CXX_FLAGS_DEBUG}")
-message("CMAKE_CXX_FLAGS_RELEASE is ${CMAKE_CXX_FLAGS_RELEASE}")

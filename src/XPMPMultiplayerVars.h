@@ -75,6 +75,14 @@ enum {
 	plane_Count
 };
 
+enum class eVertOffsetType {
+	none = 0,
+	default_offset,
+	user,
+	xsb,
+	calculated
+};
+
 // This plane struct represents one model in one CSL packpage.
 // It has a type, a single file path for whatever we have to load,
 // and then implementation-specifc stuff.
@@ -82,15 +90,18 @@ struct	CSLPlane_t {
 
 	string getModelName() const
 	{
-		string modelName;
+		string modelName = "";
 		for (const auto &dir : dirNames)
 		{
 			modelName += dir;
 			modelName += ' ';
 		}
 		modelName += objectName;
-		modelName += ' ';
-		modelName += textureName;
+		if (! textureName.empty())
+		{
+			modelName += ' ';
+			modelName += textureName;
+		}
 		return modelName;
 	}
 
@@ -106,7 +117,6 @@ struct	CSLPlane_t {
 	string						texturePath;	// Full path to the planes texture
 	string						textureLitPath; // Full path to the planes lit texture
 	bool						moving_gear;	// Does gear retract?
-    float                       vertOffset = 0; // vertical offset (initialized to 3.5 good for Airbus-sized planes...netter than sliding on our belly)
 
 	// plane_Austin
 	int							austin_idx;
@@ -118,6 +128,31 @@ struct	CSLPlane_t {
 
 	// plane_Obj8
 	vector<obj_for_acf>			attachments;
+	
+	/* distance between the origin point of an object and the lowest point of the object 
+	 * (usually a bottom point of the gears) along the vertical axis (y axis in the sim) 
+	 * for onground clamping purposes.
+	 *
+	 * in simple words, correct vert offset for accurate putting planes on the ground.
+	 * (in meters)
+	 */
+	 
+	// actual vert offset
+	eVertOffsetType actualVertOffsetType = eVertOffsetType::none;
+	eVertOffsetType prevActualVertOffsetType = eVertOffsetType::none;
+	double actualVertOffset = 0.0;//meters
+	// local user's vert offset
+	bool isUserVertOffsetUpToDate = false;
+	bool isUserVertOffsetAvail = false;
+	double userVertOffset = 0.0;
+	// vert offset from xsb file
+	bool isXsbVertOffsetUpToDate = false;
+	bool isXsbVertOffsetAvail = false;
+	double xsbVertOffset = 0.0;
+	// calculated vert offset
+	bool isCalcVertOffsetUpToDate = false;
+	bool isCalcVertOffsetAvail = false;
+	double calcVertOffset = 0.0;
 };
 
 // These enums define the eight levels of matching we might possibly
@@ -195,6 +230,10 @@ struct	XPMPPlane_t {
 	OBJ7Handle                  objHandle;
 	TextureHandle               texHandle;
 	TextureHandle               texLitHandle;
+
+	ObjManager::TransientState      objState;
+	TextureManager::TransientState  texState;
+	TextureManager::TransientState  texLitState;
 };
 
 typedef	XPMPPlane_t *								XPMPPlanePtr;
@@ -221,4 +260,35 @@ extern int 								gEnableCount;			// Hack - see TCAS support
 
 extern string							gDefaultPlane;			// ICAO of default plane
 
+// Helper funcs
+namespace xmp {
+	inline std::string trim(std::string inStr, bool inLeft = true, bool inRight = true, const std::string &inDelim = " \t\f\v\r\n") {
+		if (inRight)
+		{
+			inStr.erase(inStr.find_last_not_of(inDelim) + 1);//trim right side
+		}
+		if (inLeft)
+		{
+			inStr.erase(0, inStr.find_first_not_of(inDelim));//trim left side
+		}
+		return inStr;
+	}
+
+	inline std::vector<std::string> explode(const std::string &inStr, const std::string &inDelim = " \t\f\v\r\n") {
+		std::vector<std::string> out;
+		std::size_t found = inStr.find_first_of(inDelim);
+		std::size_t lastFound = 0;
+
+		while (found != std::string::npos) {
+			if (lastFound != found)
+				out.push_back(trim(inStr.substr(lastFound, found - lastFound)));
+			found = inStr.find_first_of(inDelim, lastFound = found + 1);
+		}
+
+		if (lastFound != inStr.size())  // Critical end
+			out.push_back(trim(inStr.substr(lastFound, inStr.size() - lastFound)));
+
+		return out;
+	}
+}
 #endif

@@ -25,6 +25,7 @@
 #include "XPMPMultiplayerVars.h"
 #include "XPMPPlaneRenderer.h"
 #include "XPMPMultiplayerCSL.h"
+#include "XPMPMultiplayerCSLOffset.h"
 #include "XPLMUtilities.h"
 
 #include <algorithm>
@@ -80,8 +81,13 @@
  ******************************************************************************/
 
 
-
-
+/* we can only manipulate the TCAS, etc, if we have control of the AI aircraft
+ *
+ * Non-static because this information is actually needed in the renderer, but
+ * we don't want it known outside of libxplanemp and both this and the renderer's
+ * headers are public!  argh!
+*/
+bool	gHasControlOfAIAircraft = false;
 
 static	XPMPPlanePtr	XPMPPlaneFromID(
 		XPMPPlaneID 		inID,
@@ -100,12 +106,25 @@ static	int				XPMPControlPlaneCount(
 		int                  inIsBefore,
 		void *               inRefcon);
 
-// This drawing hook is called during 2D UI drawing for drawing the a/c labels.
-// Their 2D coordinates had been calculated in
-static  int             XPMPDrawPlaneLabels(
-        XPLMDrawingPhase     inPhase,
-        int                  inIsBefore,
-        void *               inRefcon);
+void actualVertOffsetInfo(const char *inMtl, char *outType, double *outOffset) {
+	std::string type;
+	double offset;
+	cslVertOffsetCalc.actualVertOffsetInfo(inMtl, type, offset);
+	if(outType) {
+		std::strcpy(outType, type.c_str());
+	}
+	if (outOffset) {
+		*outOffset = offset;
+	}
+}
+
+void setUserVertOffset(const char *inMtlCode, double inOffset) {
+	cslVertOffsetCalc.setUserVertOffset(inMtlCode, inOffset);
+}
+
+void removeUserVertOffset(const char *inMtlCode) {
+	cslVertOffsetCalc.removeUserVertOffset(inMtlCode);
+}
 
 #ifdef DEBUG_GL
 static void xpmpKhrDebugProc(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *param)
@@ -217,9 +236,43 @@ const char * 	XPMPMultiplayerInitLegacyData(
 	else 				return "";
 }
 
+const char *    XPMPMultiplayerOBJ7SupportEnable(const char * inTexturePath) {
+	// Set up OpenGL for our drawing callbacks
+	OGL_UtilsInit();
+#ifdef DEBUG_GL
+	XPLMDebugString(XPMP_CLIENT_NAME ": WARNING: This build includes OpenGL Debugging\n");
+	XPLMDebugString("    OpenGL Debugging induces a large overhead and produces large logfiles.\n");
+	XPLMDebugString("    Please do not use this build other than as directed.\n");
+#endif
+
+	OGLDEBUG(XPLMDebugString(XPMP_CLIENT_NAME " - GL supports debugging\n"));
+	OGLDEBUG(glEnable(GL_DEBUG_OUTPUT));
+	OGLDEBUG(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
+	OGLDEBUG(XPMPSetupGLDebug());
+	
+	xpmp_tex_useAnisotropy = OGL_HasExtension("GL_EXT_texture_filter_anisotropic");
+	if (xpmp_tex_useAnisotropy) {
+		GLfloat maxAnisoLevel;
+		
+		XPLMDebugString(XPMP_CLIENT_NAME " - GL supports anisoptropic filtering.\n");
+		
+		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisoLevel);
+		xpmp_tex_maxAnisotropy = maxAnisoLevel;
+	}
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &xpmp_tex_maxSize);
+
+	bool problem = false;
+	if (!CSL_Init(inTexturePath))
+		problem = true;
+
+	if (problem) return "There was a problem initializing " XPMP_CLIENT_LONGNAME ". Please examine X-Plane's Log.txt file for detailed information.";
+	else         return "";
+}
+
 const char * 	XPMPMultiplayerInit(
 		int (* inIntPrefsFunc)(const char *, const char *, int),
-		float (* inFloatPrefsFunc)(const char *, const char *, float))
+		float (* inFloatPrefsFunc)(const char *, const char *, float),
+		const char * resourceDir)
 {
 	gIntPrefsFunc = inIntPrefsFunc;
 	gFloatPrefsFunc = inFloatPrefsFunc;
@@ -228,6 +281,8 @@ const char * 	XPMPMultiplayerInit(
 	//char	line[256];
 	//char	sysPath[1024];
 	//FILE *	fi;
+
+	cslVertOffsetCalc.setResourcesDir(resourceDir);
 	
 	bool	problem = false;
 
@@ -247,11 +302,6 @@ const char * 	XPMPMultiplayerInit(
 	if ( !XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
 							 xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */))
         problem=true;
-    
-    // Register the label drawing func.
-    if ( !XPLMRegisterDrawCallback(XPMPDrawPlaneLabels,
-                                   xplm_Phase_Window, 1 /*before*/, 0 /* refcon */))
-        problem=true;
 
 	if (problem)		return "There were problems initializing " XPMP_CLIENT_LONGNAME ".  Please examine X-Plane's error.out file for detailed information.";
 	else 				return "";
@@ -259,10 +309,7 @@ const char * 	XPMPMultiplayerInit(
 
 void XPMPMultiplayerCleanup(void)
 {
-	XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 0, 0);
-	XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 1, (void *) -1);
-	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
-    XPLMUnregisterDrawCallback(XPMPDrawPlaneLabels,   xplm_Phase_Window, 1, 0)
+	XPMPDeinitDefaultPlaneRenderer();
 	OGLDEBUG(glDebugMessageCallback(NULL, NULL));
 }
 
@@ -288,7 +335,10 @@ const  char * XPMPMultiplayerEnable(void)
 				char	buf[1024];
 				strcpy(buf,gPackages[p].planes[pp].file_path.c_str());
 #if APL
-				Posix2HFSPath(buf,buf,1024);
+				if (XPLMIsFeatureEnabled("XPLM_USE_NATIVE_PATHS") == 0)
+				{
+					Posix2HFSPath(buf, buf, 1024);
+				}
 #endif
 				gPlanePaths.push_back(buf);
 			}
@@ -310,25 +360,46 @@ const  char * XPMPMultiplayerEnable(void)
 	
 	// Attempt to grab multiplayer planes, then analyze.
 	int	result = XPLMAcquirePlanes(&(*ptrs.begin()), NULL, NULL);
-	if (result)
+	if (result) {
+		gHasControlOfAIAircraft = true;
 		XPLMSetActiveAircraftCount(1);
-	else
-		XPLMDebugString("WARNING: " XPMP_CLIENT_LONGNAME " did not acquire multiplayer planes!!\n");
 
-	int	total, 		active;
-	XPLMPluginID	who;
-	
-	XPLMCountAircraft(&total, &active, &who);
-	if (result == 0)
-	{
-		return XPMP_CLIENT_LONGNAME " was not able to start up multiplayer visuals because another plugin is controlling aircraft.";
-	} else
-		return "";
+		int	total, 		active;
+		XPLMPluginID	who;
+
+		XPLMCountAircraft(&total, &active, &who);
+
+		// Register the plane control calls.
+		XPLMRegisterDrawCallback(XPMPControlPlaneCount,
+			xplm_Phase_Gauges, 0, /* after*/ 0 /* hide planes*/);
+
+		XPLMRegisterDrawCallback(XPMPControlPlaneCount,
+			xplm_Phase_Gauges, 1, /* before */ (void *) -1 /* show planes*/);
+	} else {
+		gHasControlOfAIAircraft = false;
+		XPLMDebugString("WARNING: " XPMP_CLIENT_LONGNAME " did not acquire multiplayer planes!!\n");
+		XPLMDebugString("    Without multiplayer plane control, we cannot fake TCAS or render ACF aircraft!\n");
+		XPLMDebugString("    Make sure you remove any plugins that control multiplayer aircraft if you want these features to work\n");
+	}
+
+	// Register the actual drawing func.
+	XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
+		xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */);
+
+	return "";
 }
 
 void XPMPMultiplayerDisable(void)
 {
-	XPLMReleasePlanes();
+	if (gHasControlOfAIAircraft) {
+		XPLMReleasePlanes();
+		gHasControlOfAIAircraft = false;
+
+		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 0, 0);
+		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 1, (void *) -1);
+	}
+
+	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
 }
 
 
@@ -347,6 +418,10 @@ const char * 	XPMPLoadCSLPackage(
 // This routine checks plane loading and grabs anyone we're missing.
 void	XPMPLoadPlanesIfNecessary(void)
 {
+	// if we do not control the MP system, we can not do this.
+	if (!gHasControlOfAIAircraft) {
+		return;
+	}
 	int	active, models;
 	XPLMPluginID	owner;
 	XPLMCountAircraft(&models, &active, &owner);
@@ -514,11 +589,15 @@ int	XPMPChangePlaneModel(
 	plane->airline = inAirline;
 	plane->livery = inLivery;
 	plane->model = CSL_MatchPlane(inICAOCode, inAirline, inLivery, &plane->match_quality, true);
+
 	// we're changing model, we must flush the resource handles so they get reloaded.
 	plane->objHandle = NULL;
 	plane->texHandle = NULL;
 	plane->texLitHandle = NULL;
-	
+	plane->objState = {};
+	plane->texState = {};
+	plane->texLitState = {};
+
 	for (XPMPPlaneNotifierVector::iterator iter2 = gObservers.begin(); iter2 !=
 		 gObservers.end(); ++iter2)
 	{
@@ -714,6 +793,9 @@ int	XPMPControlPlaneCount(
 		int                  /*inIsBefore*/,
 		void *               inRefcon)
 {
+	if (!gHasControlOfAIAircraft) {
+		return 1;
+	}
 	if (inRefcon == NULL)
 	{
 		XPLMSetActiveAircraftCount(1);
@@ -748,17 +830,6 @@ int	XPMPRenderMultiplayerPlanes(
 		is_blend = 1 - is_blend;
 	return 1;
 }
-
-int XPMPDrawPlaneLabels(
-        XPLMDrawingPhase     /* inPhase */,
-        int                  /* inIsBefore */,
-        void *               /* inRefcon */)
-{
-    if (!gRenderer)
-        XPMPDefaultLabelWriter();
-    return 1;
-}
-
 
 bool			XPMPIsICAOValid(
 		const char *				inICAO)

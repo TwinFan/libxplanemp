@@ -66,6 +66,7 @@ const	float	kNavLightRed[] = {1.0f, 0.0f, 0.2f, 0.5f};
 const	float	kNavLightGreen[] = {0.0f, 1.0f, 0.3f, 0.5f};
 const	float	kLandingLight[]	= {1.0f, 1.0f, 0.7f, 0.6f};
 const	float	kStrobeLight[]	= {1.0f, 1.0f, 1.0f, 0.7f};
+const	float	kTaxiLight[] = {1.0f, 1.0f, 0.7f, 0.6f};
 
 static	int sLightTexture = -1;
 
@@ -589,7 +590,7 @@ void	OBJ_PlotModel(XPMPPlane_t *plane, float inDistance, double /*inX*/,
 {
 	if (! plane->objHandle)
 	{
-		plane->objHandle = gObjManager.get(plane->model->file_path);
+		plane->objHandle = gObjManager.get(plane->model->file_path, &plane->objState);
 		if (plane->objHandle && plane->objHandle->loadStatus == Failed)
 		{
 			// Failed to load
@@ -606,7 +607,7 @@ void	OBJ_PlotModel(XPMPPlane_t *plane, float inDistance, double /*inX*/,
 	{
 		string texturePath = plane->model->texturePath;
 		if (texturePath.empty()) { texturePath = plane->objHandle->defaultTexture; }
-		plane->texHandle = gTextureManager.get(texturePath);
+		plane->texHandle = gTextureManager.get(texturePath, &plane->texState);
 
 		// Async loading completed with failure
 		if (plane->texHandle && plane->texHandle->loadStatus == Failed)
@@ -625,7 +626,7 @@ void	OBJ_PlotModel(XPMPPlane_t *plane, float inDistance, double /*inX*/,
 	{
 		string texturePath = model->textureLitPath;
 		if (texturePath.empty()) { texturePath = plane->objHandle->defaultLitTexture; }
-		plane->texLitHandle = gTextureManager.get(texturePath);
+		plane->texLitHandle = gTextureManager.get(texturePath, &plane->texLitState);
 	}
 
 	if (plane->texHandle && plane->texHandle->loadStatus == Succeeded && !plane->texHandle->id)
@@ -775,6 +776,7 @@ void	OBJ_PlotModel(XPMPPlane_t *plane, float inDistance, double /*inX*/,
  RGB of 33,33,33 is a Red flashing BEACON light
  RGB of 44,44,44 is a White flashing STROBE light
  RGB of 55,55,55 is a landing light
+ RGB of 66,66,66 is a taxi light
 ******************************************************/
 void	OBJ_BeginLightDrawing()
 {
@@ -793,6 +795,7 @@ void	OBJ_DrawLights(XPMPPlane_t *plane, float inDistance, double inX, double inY
 	bool bcnLights = lights.bcnLights == 1;
 	bool strbLights = lights.strbLights == 1;
 	bool landLights = lights.landLights == 1;
+	bool taxiLights = lights.taxiLights == 1;
 
 	if (! plane->objHandle) { return; }
 	auto obj = plane->objHandle.get();
@@ -863,15 +866,15 @@ void	OBJ_DrawLights(XPMPPlane_t *plane, float inDistance, double inX, double inY
 	XPLMReadCameraPosition(&cameraPos);
 	
 	// We can have 1 or more lights on each aircraft
-	for(size_t n = 0; n < obj->lods[lodIdx].lights.size(); n++)
+	for (size_t n = 0; n < obj->lods[lodIdx].lights.size(); n++)
 	{
 		glMatrixMode(GL_MODELVIEW);
 		glPushMatrix();
 		// First we translate to our coordinate system and move the origin
 		// to the center of our lights.
 		glTranslatef(obj->lods[lodIdx].lights[n].xyz[0],
-				obj->lods[lodIdx].lights[n].xyz[1],
-				obj->lods[lodIdx].lights[n].xyz[2]);
+			obj->lods[lodIdx].lights[n].xyz[1],
+			obj->lods[lodIdx].lights[n].xyz[2]);
 
 		// Now we undo the rotation of the plane
 		glRotated(-inRoll, 0.0, 0.0, -1.0);
@@ -899,13 +902,13 @@ void	OBJ_DrawLights(XPMPPlane_t *plane, float inDistance, double inX, double inY
 		// Scale based on our FOV and Zoom. I did my initial
 		// light adjustments at a FOV of 60 so thats why
 		// I divide our current FOV by 60 to scale it appropriately.
-		distance *= sFOV/60.0;
+		distance *= sFOV / 60.0;
 		distance /= cameraPos.zoom;
 
 		// Calculate our light size. This is piecewise linear. I noticed
 		// that light size changed more rapidly when closer than 3nm so
 		// I have a separate equation for that.
-		if(distance <= 3.6)
+		if (distance <= 3.6)
 			size = (10.0f * static_cast<GLfloat>(distance)) + 1.0f;
 		else
 			size = (6.7f * static_cast<GLfloat>(distance)) + 12.0f;
@@ -913,81 +916,102 @@ void	OBJ_DrawLights(XPMPPlane_t *plane, float inDistance, double inX, double inY
 		// Finally we can draw our lights
 		// Red Nav
 		glBegin(GL_QUADS);
-		if((obj->lods[lodIdx].lights[n].rgb[0] == 11) &&
-				(obj->lods[lodIdx].lights[n].rgb[1] == 11) &&
-				(obj->lods[lodIdx].lights[n].rgb[2] == 11))
+		if ((obj->lods[lodIdx].lights[n].rgb[0] == 11) &&
+			(obj->lods[lodIdx].lights[n].rgb[1] == 11) &&
+			(obj->lods[lodIdx].lights[n].rgb[2] == 11))
 		{
-			if(navLights) {
+			if (navLights) {
 				glColor4fv(kNavLightRed);
-				glTexCoord2f(0.0f, 0.5f); glVertex2f(-(size/2.0f), -(size/2.0f));
-				glTexCoord2f(0.0f, 1.0f); glVertex2f(-(size/2.0f), (size/2.0f));
-				glTexCoord2f(0.25f, 1.0f); glVertex2f((size/2.0f), (size/2.0f));
-				glTexCoord2f(0.25f, 0.5f); glVertex2f((size/2.0f), -(size/2.0f));
+				glTexCoord2f(0.0f, 0.5f); glVertex2f(-(size / 2.0f), -(size / 2.0f));
+				glTexCoord2f(0.0f, 1.0f); glVertex2f(-(size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.25f, 1.0f); glVertex2f((size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.25f, 0.5f); glVertex2f((size / 2.0f), -(size / 2.0f));
 			}
 		}
 		// Green Nav
-		else if((obj->lods[lodIdx].lights[n].rgb[0] == 22) &&
-				(obj->lods[lodIdx].lights[n].rgb[1] == 22) &&
-				(obj->lods[lodIdx].lights[n].rgb[2] == 22))
+		else if ((obj->lods[lodIdx].lights[n].rgb[0] == 22) &&
+			(obj->lods[lodIdx].lights[n].rgb[1] == 22) &&
+			(obj->lods[lodIdx].lights[n].rgb[2] == 22))
 		{
-			if(navLights) {
+			if (navLights) {
 				glColor4fv(kNavLightGreen);
-				glTexCoord2f(0.0f, 0.5f); glVertex2f(-(size/2.0f), -(size/2.0f));
-				glTexCoord2f(0.0f, 1.0f); glVertex2f(-(size/2.0f), (size/2.0f));
-				glTexCoord2f(0.25f, 1.0f); glVertex2f((size/2.0f), (size/2.0f));
-				glTexCoord2f(0.25f, 0.5f); glVertex2f((size/2.0f), -(size/2.0f));
+				glTexCoord2f(0.0f, 0.5f); glVertex2f(-(size / 2.0f), -(size / 2.0f));
+				glTexCoord2f(0.0f, 1.0f); glVertex2f(-(size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.25f, 1.0f); glVertex2f((size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.25f, 0.5f); glVertex2f((size / 2.0f), -(size / 2.0f));
 			}
 		}
 		// Beacon
-		else if((obj->lods[lodIdx].lights[n].rgb[0] == 33) &&
-				(obj->lods[lodIdx].lights[n].rgb[1] == 33) &&
-				(obj->lods[lodIdx].lights[n].rgb[2] == 33))
+		else if ((obj->lods[lodIdx].lights[n].rgb[0] == 33) &&
+			(obj->lods[lodIdx].lights[n].rgb[1] == 33) &&
+			(obj->lods[lodIdx].lights[n].rgb[2] == 33))
 		{
-			if(bcnLights)
+			if (bcnLights)
 			{
 				glColor4fv(kNavLightRed);
-				glTexCoord2f(0.0f, 0.5f); glVertex2f(-(size/2.0f), -(size/2.0f));
-				glTexCoord2f(0.0f, 1.0f); glVertex2f(-(size/2.0f), (size/2.0f));
-				glTexCoord2f(0.25f, 1.0f); glVertex2f((size/2.0f), (size/2.0f));
-				glTexCoord2f(0.25f, 0.5f); glVertex2f((size/2.0f), -(size/2.0f));
+				glTexCoord2f(0.0f, 0.5f); glVertex2f(-(size / 2.0f), -(size / 2.0f));
+				glTexCoord2f(0.0f, 1.0f); glVertex2f(-(size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.25f, 1.0f); glVertex2f((size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.25f, 0.5f); glVertex2f((size / 2.0f), -(size / 2.0f));
 			}
 		}
 		// Strobes
-		else if((obj->lods[lodIdx].lights[n].rgb[0] == 44) &&
-				(obj->lods[lodIdx].lights[n].rgb[1] == 44) &&
-				(obj->lods[lodIdx].lights[n].rgb[2] == 44))
+		else if ((obj->lods[lodIdx].lights[n].rgb[0] == 44) &&
+			(obj->lods[lodIdx].lights[n].rgb[1] == 44) &&
+			(obj->lods[lodIdx].lights[n].rgb[2] == 44))
 		{
-			if(strbLights)
+			if (strbLights)
 			{
 				glColor4fv(kStrobeLight);
-				glTexCoord2f(0.25f, 0.0f); glVertex2f(-(size/1.5f), -(size/1.5f));
-				glTexCoord2f(0.25f, 0.5f); glVertex2f(-(size/1.5f), (size/1.5f));
-				glTexCoord2f(0.50f, 0.5f); glVertex2f((size/1.5f), (size/1.5f));
-				glTexCoord2f(0.50f, 0.0f); glVertex2f((size/1.5f), -(size/1.5f));
+				glTexCoord2f(0.25f, 0.0f); glVertex2f(-(size / 1.5f), -(size / 1.5f));
+				glTexCoord2f(0.25f, 0.5f); glVertex2f(-(size / 1.5f), (size / 1.5f));
+				glTexCoord2f(0.50f, 0.5f); glVertex2f((size / 1.5f), (size / 1.5f));
+				glTexCoord2f(0.50f, 0.0f); glVertex2f((size / 1.5f), -(size / 1.5f));
 			}
 		}
 		// Landing Lights
-		else if((obj->lods[lodIdx].lights[n].rgb[0] == 55) &&
-				(obj->lods[lodIdx].lights[n].rgb[1] == 55) &&
-				(obj->lods[lodIdx].lights[n].rgb[2] == 55))
+		else if ((obj->lods[lodIdx].lights[n].rgb[0] == 55) &&
+			(obj->lods[lodIdx].lights[n].rgb[1] == 55) &&
+			(obj->lods[lodIdx].lights[n].rgb[2] == 55))
 		{
-			if(landLights) {
+			if (landLights) {
 				// BEN SEZ: modulate the _alpha to make this dark, not
 				// the light color.  Otherwise if the sky is fairly light the light
 				// will be darker than the sky, which looks f---ed during the day.
 				float color[4];
 				color[0] = kLandingLight[0];
-				if(color[0] < 0.0) color[0] = 0.0;
+				if (color[0] < 0.0) color[0] = 0.0;
 				color[1] = kLandingLight[1];
-				if(color[0] < 0.0) color[0] = 0.0;
+				if (color[0] < 0.0) color[0] = 0.0;
 				color[2] = kLandingLight[2];
-				if(color[0] < 0.0) color[0] = 0.0;
+				if (color[0] < 0.0) color[0] = 0.0;
 				color[3] = kLandingLight[3] * ((static_cast<float>(distance) * -0.05882f) + 1.1764f);
 				glColor4fv(color);
-				glTexCoord2f(0.25f, 0.0f); glVertex2f(-(size/2.0f), -(size/2.0f));
-				glTexCoord2f(0.25f, 0.5f); glVertex2f(-(size/2.0f), (size/2.0f));
-				glTexCoord2f(0.50f, 0.5f); glVertex2f((size/2.0f), (size/2.0f));
-				glTexCoord2f(0.50f, 0.0f); glVertex2f((size/2.0f), -(size/2.0f));
+				glTexCoord2f(0.25f, 0.0f); glVertex2f(-(size / 2.0f), -(size / 2.0f));
+				glTexCoord2f(0.25f, 0.5f); glVertex2f(-(size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.50f, 0.5f); glVertex2f((size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.50f, 0.0f); glVertex2f((size / 2.0f), -(size / 2.0f));
+			}
+		}
+		// taxi lights
+		else if ((obj->lods[lodIdx].lights[n].rgb[0] == 66) &&
+			(obj->lods[lodIdx].lights[n].rgb[1] == 66) &&
+			(obj->lods[lodIdx].lights[n].rgb[2] == 66))
+		{
+			if (taxiLights) {
+				float color[4];
+				color[0] = kTaxiLight[0];
+				if (color[0] < 0.0) color[0] = 0.0;
+				color[1] = kTaxiLight[1];
+				if (color[1] < 0.0) color[1] = 0.0;
+				color[2] = kTaxiLight[2];
+				if (color[2] < 0.0) color[2] = 0.0;
+				color[3] = kTaxiLight[3] * ((static_cast<float>(distance) * -0.05882f) + 1.1764f);
+				glColor4fv(color);
+				glTexCoord2f(0.25f, 0.0f); glVertex2f(-(size / 2.0f), -(size / 2.0f));
+				glTexCoord2f(0.25f, 0.5f); glVertex2f(-(size / 2.0f), -(size / 2.0f));
+				glTexCoord2f(0.50f, 0.5f); glVertex2f((size / 2.0f), (size / 2.0f));
+				glTexCoord2f(0.50f, 0.0f); glVertex2f((size / 2.0f), -(size / 2.0f));
 			}
 		} else {
 			// rear nav light and others? I guess...

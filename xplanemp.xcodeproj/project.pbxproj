@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		252E84772205067D0089661C /* XPMPMultiplayerCSLOffset.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 252E84752205067C0089661C /* XPMPMultiplayerCSLOffset.cpp */; };
 		25B23FA821BDCE1D0039A7F0 /* xplanemp.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 2544F4B720791654002FAA4C /* xplanemp.framework */; };
 		25C0C8BC2186019A0049F226 /* XPMPMultiplayer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25C0C89C218601540049F226 /* XPMPMultiplayer.cpp */; };
 		25C0C8BD2186023C0049F226 /* BitmapUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25C0C8A8218601540049F226 /* BitmapUtils.cpp */; };
@@ -40,6 +41,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		252E84752205067C0089661C /* XPMPMultiplayerCSLOffset.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = XPMPMultiplayerCSLOffset.cpp; sourceTree = "<group>"; };
+		252E84762205067C0089661C /* XPMPMultiplayerCSLOffset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = XPMPMultiplayerCSLOffset.h; sourceTree = "<group>"; };
 		2544F4B720791654002FAA4C /* xplanemp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = xplanemp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2544F4C2207916E7002FAA4C /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		25C0C890218601540049F226 /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = SOURCE_ROOT; };
@@ -157,6 +160,8 @@
 				25C0C89D218601540049F226 /* XPCAircraft.cpp */,
 				25C0C89C218601540049F226 /* XPMPMultiplayer.cpp */,
 				25C0C8AD218601540049F226 /* XPMPMultiplayerCSL.cpp */,
+				252E84752205067C0089661C /* XPMPMultiplayerCSLOffset.cpp */,
+				252E84762205067C0089661C /* XPMPMultiplayerCSLOffset.h */,
 				25C0C8B1218601540049F226 /* XPMPMultiplayerObj.cpp */,
 				25C0C8A0218601540049F226 /* XPMPMultiplayerObj8.cpp */,
 				25C0C89E218601540049F226 /* XPMPMultiplayerVars.cpp */,
@@ -273,6 +278,7 @@
 				25C0C8C62186023C0049F226 /* XPMPMultiplayerVars.cpp in Sources */,
 				25C0C8BF2186023C0049F226 /* XObjDefs.cpp in Sources */,
 				25C0C8C32186023C0049F226 /* XPMPMultiplayerCSL.cpp in Sources */,
+				252E84772205067D0089661C /* XPMPMultiplayerCSLOffset.cpp in Sources */,
 				25C0C8C72186023C0049F226 /* XPMPPlaneRenderer.cpp in Sources */,
 				25C0C8BC2186019A0049F226 /* XPMPMultiplayer.cpp in Sources */,
 			);
@@ -332,6 +338,8 @@
 					"XPLM210=1",
 					"__MACH__=1",
 					"XUTILS_EXCLUDE_MAC_CRAP=1",
+					"XPMP_CLIENT_NAME='\"LT\"'",
+					"XPMP_CLIENT_LONGNAME='\"LiveTraffic\"'",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -402,6 +410,8 @@
 					"XPLM210=1",
 					"__MACH__=1",
 					"XUTILS_EXCLUDE_MAC_CRAP=1",
+					"XPMP_CLIENT_NAME='\"LT\"'",
+					"XPMP_CLIENT_LONGNAME='\"LiveTraffic\"'",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;

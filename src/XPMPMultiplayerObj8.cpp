@@ -28,8 +28,10 @@
 #include "XPLMDataAccess.h"
 #include <stddef.h>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <memory>
 using namespace std;
-
 
 struct	one_inst {
 	one_inst * next;
@@ -65,7 +67,9 @@ enum {
 	ptch_rat,
 	head_rat,
 	roll_rat,
+	thrs_rev,
 
+	tax_lite_on,
 	lan_lite_on,
 	bcn_lite_on,
 	str_lite_on,
@@ -85,7 +89,9 @@ const char * dref_names[dref_dim] = {
 	"libxplanemp/controls/yoke_pitch_ratio",
 	"libxplanemp/controls/yoke_heading_ratio",
 	"libxplanemp/controls/yoke_roll_ratio",
+	"libxplanemp/controls/thrust_revers",
 
+	"libxplanemp/controls/taxi_lites_on",
 	"libxplanemp/controls/landing_lites_on",
 	"libxplanemp/controls/beacon_lites_on",
 	"libxplanemp/controls/strobe_lites_on",
@@ -110,7 +116,9 @@ static float obj_get_float(void * inRefcon)
 	case ptch_rat:			return s_cur_plane->state->yokePitch;			break;
 	case head_rat:			return s_cur_plane->state->yokeHeading;			break;
 	case roll_rat:			return s_cur_plane->state->yokeRoll;			break;
+	case thrs_rev:			return (s_cur_plane->state->thrust < 0.0) ? 1.0 : 0.0; break; //if thrust less than zero, reverse is on
 
+	case tax_lite_on:		return static_cast<float>(s_cur_plane->lights.taxiLights);			break;
 	case lan_lite_on:		return static_cast<float>(s_cur_plane->lights.landLights);			break;
 	case bcn_lite_on:		return static_cast<float>(s_cur_plane->lights.bcnLights);			break;
 	case str_lite_on:		return static_cast<float>(s_cur_plane->lights.strbLights);			break;
@@ -135,19 +143,7 @@ int obj_get_float_array(
 	return inCount;
 }
 
-
-
-
-
-
-
-
-
-
-static void (*XPLMLoadObjectAsync_p)(
-		const char *         inPath,
-		XPLMObjectLoaded_f   inCallback,
-		void *               inRefcon)=NULL;
+bool obj8_load_async = true;
 
 void	obj_init()
 {
@@ -157,9 +153,10 @@ void	obj_init()
 	// Ben says: we need the 2.10 SDK (e.g. X-Plane 10) to have async load at all.  But we need 10.30 to pick up an SDK bug
 	// fix where async load crashes if we queue a second load before the first completes.  So for users on 10.25, they get
 	// pauses.
-	if(sim >= 10300 && xplm >= 210)
-	{
-		XPLMLoadObjectAsync_p = (void (*)(const char *, XPLMObjectLoaded_f, void *)) XPLMFindSymbol("XPLMLoadObjectAsync");
+	if (1 == gIntPrefsFunc("debug", "allow_obj8_async_load", 0) && sim >= 10300) {
+		obj8_load_async = true;	
+	} else {
+		obj8_load_async = false;
 	}
 	
 	for(int i = 0; i < dref_dim; ++i)
@@ -175,39 +172,26 @@ void	obj_init()
 	}
 }
 
-
-
-static void		draw_objects_for_mode(one_obj * who, int want_translucent)
-{
-	while(who)
-	{
-		obj_draw_type dt = who->model->draw_type;
-		if((want_translucent && dt == draw_glass) ||
-				(!want_translucent && dt != draw_glass))
-		{
-            // set dataref ptr to light + obj state from "one_inst".
-            // loop over objects
-            // TwinFan: removing the original loop-local variable 'i'
-            //          removed a rare crash due to access violation,
-            //          whose exact reason remains a mystery.
-			for(s_cur_plane = who->head;
-                s_cur_plane;
-                s_cur_plane = s_cur_plane->next)
-			{
-				XPLMDrawObjects(who->model->handle, 1, &s_cur_plane->location, 1, 0);
-			}
-		}
-		who = who->next;
-	}
-	s_cur_plane = NULL;
-}
-
 void obj_loaded_cb(XPLMObjectRef obj, void * refcon)
 {
-	XPLMObjectRef * targ = (XPLMObjectRef *) refcon;
-	*targ = obj;
+	auto *model = reinterpret_cast<obj_for_acf *>(refcon);
+	if (obj != nullptr) {
+		model->load_state = load_loaded;
+		model->handle = obj;
+#ifdef DEBUG
+		XPLMDebugString(XPMP_CLIENT_NAME": Notified Successful Async Load of OBJ8: ");
+		XPLMDebugString(model->file.c_str());
+		XPLMDebugString("\n");
+#endif
+	} else {
+		model->load_state = load_failed;
+#ifdef DEBUG
+		XPLMDebugString(XPMP_CLIENT_NAME": Notified Failed Async Load of OBJ8: ");
+		XPLMDebugString(model->file.c_str());
+		XPLMDebugString("\n");
+#endif
+	}
 } 
-
 
 void	obj_schedule_one_aircraft(
 		CSLPlane_t *			model,
@@ -223,38 +207,45 @@ void	obj_schedule_one_aircraft(
 {
 	one_obj * iter;
 	
-	for(vector<obj_for_acf>::iterator att = model->attachments.begin(); att != model->attachments.end(); ++att)
+	for(auto att = model->attachments.begin(); att != model->attachments.end(); ++att)
 	{
-		obj_for_acf * model = &*att;
+		obj_for_acf * obj8 = &*att;
 
-		if(model->handle == NULL &&
-				!model->file.empty())
-		{
-			if(XPLMLoadObjectAsync_p)
-				XPLMLoadObjectAsync_p(model->file.c_str(),obj_loaded_cb,(void *) &model->handle);
-			else
-				model->handle = XPLMLoadObject(model->file.c_str());
-			model->file.clear();
+		if(obj8->handle == nullptr && obj8->load_state == load_none && !obj8->file.empty()) {
+#ifdef DEBUG
+			XPLMDebugString(XPMP_CLIENT_NAME ": Loading Model ");
+			XPLMDebugString(obj8->file.c_str());
+			XPLMDebugString("\n");
+#endif			
+			if(obj8_load_async) {
+				XPLMLoadObjectAsync(obj8->file.c_str(),obj_loaded_cb,reinterpret_cast<void *>(obj8));
+				obj8->load_state = load_loading;
+			} else {
+				obj8->handle = XPLMLoadObject(obj8->file.c_str());
+				if (obj8->handle != nullptr) {
+					obj8->load_state = load_loaded;
+				} else {
+					obj8->load_state = load_failed;
+				}
+			}
 		}
-
 
 		for(iter = s_worklist; iter; iter = iter->next)
 		{
-			if(iter->model == model)
+			if(iter->model == obj8)
 				break;
 		}
-		if(iter == NULL)
+		if(iter == nullptr)
 		{
 			iter = new one_obj;
 			iter->next = s_worklist;
 			s_worklist = iter;
-			iter->model = model;
-			iter->head = NULL;
+			iter->model = obj8;
+			iter->head = nullptr;
 		}
 		
-		if(iter->model->handle)
-		{
-			one_inst * i = new one_inst;
+		if(iter->model->load_state == load_loaded) {
+			auto * i = new one_inst;
 			i->next = iter->head;
 			iter->head = i;
 			i->lights = lights;
@@ -272,16 +263,25 @@ void	obj_schedule_one_aircraft(
 
 void	obj_draw_solid()
 {
-	draw_objects_for_mode(s_worklist, false);
-}
+	one_obj *who = s_worklist;
+	while(who)
+	{
+		static XPLMDataRef night_lighting_ref = XPLMFindDataRef("sim/graphics/scenery/percent_lights_on");
+		bool use_night = XPLMGetDataf(night_lighting_ref) > 0.25;
 
-void	obj_draw_translucent()
-{
-	draw_objects_for_mode(s_worklist, true);\
+		for (one_inst * i = who->head; i; i = i->next)
+		{
+			s_cur_plane = i;
+			// TODO: set obj sate to state datarefs(dref_names) from "one_inst".
+			XPLMDrawObjects(who->model->handle, 1, &i->location, use_night, 0);
+		}
+		who = who->next;
+	}
+	s_cur_plane = nullptr;
 }
 
 void	obj_draw_done()
 {
 	delete s_worklist;
-	s_worklist = NULL;
+	s_worklist = nullptr;
 }

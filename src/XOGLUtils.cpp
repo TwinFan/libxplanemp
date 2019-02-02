@@ -65,11 +65,29 @@ bool							xpmp_ogl_can_debug = false;
 			   Utilities Initialization
 ***************************************************/
 
+std::set<std::string>	xpmp_glExtensions;
+
+static void 
+OGL_EnumerateExtensions()
+{
+	const GLubyte *	glExtAll = glGetString(GL_EXTENSIONS);
+	std::string 	allExtensions(reinterpret_cast<const char *>(glExtAll));
+
+	std::string::size_type offs;
+	while ((offs = allExtensions.find(" ")) != std::string::npos) {
+		xpmp_glExtensions.insert(allExtensions.substr(0, offs));
+		allExtensions = allExtensions.substr(offs+1);
+	}
+}
+
 bool	OGL_UtilsInit()
 {
 	static bool firstTime = true;
 	if(firstTime)
 	{
+		// enumerate our extensions.
+		OGL_EnumerateExtensions();
+
 		// Initialize all OGL Function Pointers
 #if IBM		
 		glBindBufferARB			 = (PFNGLBINDBUFFERARBPROC)			 wglGetProcAddress("glBindBufferARB"		);
@@ -118,21 +136,7 @@ bool	OGL_UtilsInit()
 
 }
 
-std::set<std::string>	xpmp_glExtensions;
-
 bool	OGL_HasExtension(const std::string &inExtensionName) 
 {
-	if (xpmp_glExtensions.empty()) {
-		/* it's unthinkable that we'd have 0 extensions, so query the GL implementation to find
-		 * out what we do have. */
-		const GLubyte *	glExtAll = glGetString(GL_EXTENSIONS);
-		std::string 	allExtensions(reinterpret_cast<const char *>(glExtAll));
-
-        std::string::size_type offs;
-		while ((offs = allExtensions.find(" ")) != std::string::npos) {
-			xpmp_glExtensions.insert(allExtensions.substr(0, offs));
-			allExtensions = allExtensions.substr(offs+1);
-		}
-	}
 	return (xpmp_glExtensions.count(inExtensionName) > 0);
 }

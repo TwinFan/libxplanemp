@@ -21,15 +21,38 @@
  *
  */
 
-#ifndef XPLMPLANERENDERER_H
-#define XPLMPLANERENDERER_H
+#ifndef XPLMMULTIPLAYERCSLOFFSET_H
+#define XPLMMULTIPLAYERCSLOFFSET_H
 
-// Theoretically you can plug in your own plane-rendering
-// function (although in practice this isn't real useful.
-// These functions do "the drawing" once per frame.
+#include "XPLMPlanes.h"
+#include "XPMPMultiplayerVars.h"
 
-void 			XPMPInitDefaultPlaneRenderer(void);
-void			XPMPDefaultPlaneRenderer(int is_blend);
-void			XPMPDeinitDefaultPlaneRenderer(void);
+class CslModelVertOffsetCalculator {
+
+public:
+	~CslModelVertOffsetCalculator();
+	
+	static std::string offsetTypeToString(eVertOffsetType inOffsetType);
+	
+	void setResourcesDir(const std::string &inResDir);
+	void findOrUpdateActualVertOffset(CSLPlane_t &inOutCslModel);
+	
+	void actualVertOffsetInfo(const std::string &inMtl, std::string &outType, double &outOffset);
+	void setUserVertOffset(const std::string &inMtlCode, double inOffset);
+	void removeUserVertOffset(const std::string &inMtlCode);
+	
+private:
+	bool findOffsetInObj8(CSLPlane_t &inOutCslModel);
+	bool findOffsetInObj(CSLPlane_t &inOutCslModel);
+	
+	void loadUserOffsets();
+	void saveUserOffsets();
+	
+	std::string mResourcesDir;
+	std::map<std::string, double>mAvailableUserOffsets;
+	std::set<std::string> mUpdateUserOffsetForThisMtl;
+};
+
+extern CslModelVertOffsetCalculator cslVertOffsetCalc;
 
 #endif
