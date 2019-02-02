@@ -51,9 +51,10 @@ Clients initializing the library are responsible for passing paths in these
 formats.  (Macintosh clients can convert from HFS to Posix using the routine
 HFS2PosixPath, which internally uses CFURL for the conversion.)
 
-The X-Plane SDK uses native paths, but on Macintosh uses HFS paths.  XPMP
-on Mac converts paths from HFS to Posix at all points of interaction with
-the SDK.
+The X-Plane SDK uses native paths, but on Macintosh uses HFS paths unless 
+the feature XPLM_USE_NATIVE_PATHS has been enabled. If the feature has been
+enabled, all paths are in posix format. Otherwise XPMP on Mac converts 
+paths from HFS to Posix at all points of interaction with the SDK.
 
 The paths in some X-Plane formats like OBJ can often have any directory
 separator.  These paths are always partial paths; XPMP converts them to

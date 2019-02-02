@@ -4,12 +4,17 @@
 
 This is libxplanemp, the multiplayer client code for X-Plane.
 
-This particular repository is Chris' master repository used in XSquawkBox.
-
-See README.MULTIPLAYER for more information.
+See README.MULTIPLAYER for the original README file.
 
 To clone this repository to your local drive, use:
 git clone https://github.com/kuroneko/libxplanemp
+
+### Additional Notes
+
+* Included CMakeFiles can be integrated into your project directly
+
+* Make sure you define `XPMP_CLIENT_NAME` and `XPMP_CLIENT_LONGNAME` to
+  reflect your client/plugin.
 
 ## License
 ```
