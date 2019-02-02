@@ -68,8 +68,9 @@ void CslModelVertOffsetCalculator::findOrUpdateActualVertOffset(CSLPlane_t & inO
 		if (result2 != mAvailableUserOffsets.end()) {
 			inOutCslModel.userVertOffset = result2->second;
 			inOutCslModel.isUserVertOffsetAvail = true;
-			XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The USER Y offset (" + std::to_string(inOutCslModel.userVertOffset) 
-										+ ") for the model has been found; Mtl Code: " + inOutCslModel.getModelName() + "\n").c_str());
+            if (gIntPrefsFunc("debug", "model_matching", 0))
+                XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The USER Y offset (" + std::to_string(inOutCslModel.userVertOffset)
+                                            + ") for the model has been found; Mtl Code: " + inOutCslModel.getModelName() + "\n").c_str());
 		}
 	}
 	
@@ -77,8 +78,9 @@ void CslModelVertOffsetCalculator::findOrUpdateActualVertOffset(CSLPlane_t & inO
 	if (!inOutCslModel.isXsbVertOffsetUpToDate) {
 		inOutCslModel.isXsbVertOffsetUpToDate = true;
 		if(inOutCslModel.isXsbVertOffsetAvail) {
-			XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The Y offset (" + std::to_string(inOutCslModel.xsbVertOffset) 
-										+ ") for the model has been found in the xsb file; Mtl Code: " + inOutCslModel.getModelName() + "\n").c_str());
+            if (gIntPrefsFunc("debug", "model_matching", 0))
+                XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The Y offset (" + std::to_string(inOutCslModel.xsbVertOffset)
+                                            + ") for the model has been found in the xsb file; Mtl Code: " + inOutCslModel.getModelName() + "\n").c_str());
 		}
 	}
 	
@@ -117,8 +119,9 @@ void CslModelVertOffsetCalculator::findOrUpdateActualVertOffset(CSLPlane_t & inO
 	}
 	// if something wrong and we not have any vert offsets, use 0.0
 	if (inOutCslModel.actualVertOffsetType == eVertOffsetType::none) {
-		XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: The Y offset for the model is not found."
-				" Will use 0 as the vert offset. Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
+        if (gIntPrefsFunc("debug", "model_matching", 0))
+            XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: The Y offset for the model is not found."
+                    " Will use 0 as the vert offset. Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
 		inOutCslModel.calcVertOffset = 0.0;
 		inOutCslModel.isCalcVertOffsetAvail = true;
 		inOutCslModel.actualVertOffset = inOutCslModel.calcVertOffset;
@@ -126,9 +129,10 @@ void CslModelVertOffsetCalculator::findOrUpdateActualVertOffset(CSLPlane_t & inO
 	}
 	if (inOutCslModel.actualVertOffsetType != inOutCslModel.prevActualVertOffsetType) {
 		inOutCslModel.prevActualVertOffsetType = inOutCslModel.actualVertOffsetType;
-		XPLMDebugString(std::string(XPMP_CLIENT_NAME ": Using the " + offsetTypeToString(inOutCslModel.actualVertOffsetType) 
-				+ " Y offset (" + std::to_string(inOutCslModel.actualVertOffset) + ") for the model. Mtl code: " 
-				+ inOutCslModel.getModelName() + "\n").c_str());
+        if (gIntPrefsFunc("debug", "model_matching", 0))
+            XPLMDebugString(std::string(XPMP_CLIENT_NAME ": Using the " + offsetTypeToString(inOutCslModel.actualVertOffsetType)
+                    + " Y offset (" + std::to_string(inOutCslModel.actualVertOffset) + ") for the model. Mtl code: "
+                    + inOutCslModel.getModelName() + "\n").c_str());
 	}
 }
 
@@ -216,12 +220,14 @@ bool CslModelVertOffsetCalculator::findOffsetInObj8(CSLPlane_t &inOutCslModel) {
 		}
 		inOutCslModel.isCalcVertOffsetAvail = true;
 		if (isRotateOrTranslateAnimDetected) {
-			XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: During calculating the Y offset for the model Translate or/and Rotate animation has been found in an obj8; "
-				"So, the calculated Y offset can be wrong due to animations. "
-				"Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
+            if (gIntPrefsFunc("debug", "model_matching", 0))
+                XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: During calculating the Y offset for the model Translate or/and Rotate animation has been found in an obj8; "
+                    "So, the calculated Y offset can be wrong due to animations. "
+                    "Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
 		}
-		XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The Y offset (" + std::to_string(inOutCslModel.calcVertOffset) + ") for the model has been calculated from the obj8; "
-			"Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
+        if (gIntPrefsFunc("debug", "model_matching", 0))
+            XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The Y offset (" + std::to_string(inOutCslModel.calcVertOffset) + ") for the model has been calculated from the obj8; "
+                "Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
 		return true;
 	}
 	return false;
@@ -277,8 +283,9 @@ bool CslModelVertOffsetCalculator::findOffsetInObj(CSLPlane_t &inOutCslModel) {
 			inOutCslModel.calcVertOffset = -max;
 		}
 		inOutCslModel.isCalcVertOffsetAvail = true;
-		XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The Y offset (" + std::to_string(inOutCslModel.calcVertOffset) + ") for the model has been calculated from its obj files; "
-			"Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
+        if (gIntPrefsFunc("debug", "model_matching", 0))
+            XPLMDebugString(std::string(XPMP_CLIENT_NAME ": The Y offset (" + std::to_string(inOutCslModel.calcVertOffset) + ") for the model has been calculated from its obj files; "
+                "Mtl code: " + inOutCslModel.getModelName() + "\n").c_str());
 		return true;
 	}
 	return false;
@@ -288,7 +295,8 @@ void CslModelVertOffsetCalculator::loadUserOffsets() {
 	std::string fileName = mResourcesDir + "userVertOffsets.txt";
 	std::ifstream file(fileName.c_str(), std::ios_base::in);
 	if (!file.is_open()) {
-		XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: Can't open the user vertical offsets file: " + fileName + "\n").c_str());
+        if (gIntPrefsFunc("debug", "model_matching", 0))            // conditional message, because this is an expected message on very first start
+            XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: Can't open the user vertical offsets file: " + fileName + "\n").c_str());
 		return;
 	}
 	mAvailableUserOffsets.clear();
@@ -323,7 +331,7 @@ void CslModelVertOffsetCalculator::saveUserOffsets() {
 	std::string fileName = mResourcesDir + "userVertOffsets.txt";
 	std::ofstream file(fileName.c_str(), std::ios_base::out);
 	if (!file.is_open()) {
-		XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: Can't open the user vertical offsets file: " + fileName + "\n").c_str());
+		XPLMDebugString(std::string(XPMP_CLIENT_NAME " Warning: Can't write the user vertical offsets file: " + fileName + "\n").c_str());
 		return;
 	}
 	for (auto &item : mAvailableUserOffsets) {
