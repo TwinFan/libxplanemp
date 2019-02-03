@@ -18,14 +18,21 @@ if(XPMP_DEBUG_OPENGL)
 	set(XPMP_DEFINES ${XPMP_DEFINES} DEBUG_GL=1)
 endif()
 
-# Always use position-independent code and highest optimization level (FPS!).
-add_compile_options(-O3 -fPIC)
-
 if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-	set(XPMP_DEFINES ${XPMP_DEFINES} LIN=1)
+    # Always use position-independent code
+    add_compile_options(-O3 -fPIC)
+    if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
+        # highest optimization level in Release builds
+        add_compile_options(-O3 -fPIC)
+	endif()
+    set(XPMP_DEFINES ${XPMP_DEFINES} LIN=1)
 	#set(XPMP_PLATFORM_SOURCES
 	#	src/PlatformUtils.lin.cpp)
 elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+    if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
+        # Use highest optimization level in Release builds
+        add_compile_options(/GL)
+    endif()
 	set(XPMP_DEFINES ${XPMP_DEFINES} IBM=1 _CRT_SECURE_NO_WARNINGS)
 	#set(XPMP_PLATFORM_SOURCES
 	#	src/PlatformUtils.win.cpp)
@@ -41,7 +48,7 @@ endif()
 	add_definitions(-DBITMAP_USE_PNG=1)
 #endif()
 
-add_definitions(-DXPLM200=1 -DXPLM210=1)
+add_definitions(-DXPLM200=1 -DXPLM210=1 -DXPLM300=1 -DXPLM301=1)
 
 add_library(xplanemp
 	${XPMP_PLATFORM_SOURCES}

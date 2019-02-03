@@ -116,7 +116,7 @@ static float obj_get_float(void * inRefcon)
 	case ptch_rat:			return s_cur_plane->state->yokePitch;			break;
 	case head_rat:			return s_cur_plane->state->yokeHeading;			break;
 	case roll_rat:			return s_cur_plane->state->yokeRoll;			break;
-	case thrs_rev:			return (s_cur_plane->state->thrust < 0.0) ? 1.0 : 0.0; break; //if thrust less than zero, reverse is on
+	case thrs_rev:			return (s_cur_plane->state->thrust < 0.0f) ? 1.0f : 0.0f; break; //if thrust less than zero, reverse is on
 
 	case tax_lite_on:		return static_cast<float>(s_cur_plane->lights.taxiLights);			break;
 	case lan_lite_on:		return static_cast<float>(s_cur_plane->lights.landLights);			break;

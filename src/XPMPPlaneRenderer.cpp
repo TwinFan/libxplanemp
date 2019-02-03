@@ -549,13 +549,13 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 				// always check for the offset since we need it in multiple places.
 				cslVertOffsetCalc.findOrUpdateActualVertOffset(*iter->second.plane->model);
 				if (iter->second.plane->pos.offsetScale > 0.0f) {
-					iter->second.y += iter->second.plane->pos.offsetScale * iter->second.plane->model->actualVertOffset;
+					iter->second.y += iter->second.plane->pos.offsetScale * float(iter->second.plane->model->actualVertOffset);
 				}
 				if (iter->second.plane->pos.clampToGround || (gIntPrefsFunc("planes", "clamp_all_to_ground", 0) != 0)) {
 					//correct y value by real terrain elevation
 					//find or update the actual vert offset in the csl model data
 					cslVertOffsetCalc.findOrUpdateActualVertOffset(*iter->second.plane->model);
-					iter->second.y = correctYValue(
+					iter->second.y = (float)correctYValue(
 						iter->second.x, iter->second.y, iter->second.z, iter->second.plane->model->actualVertOffset);
 				}
 				if (iter->second.plane->model->plane_type == plane_Austin)
@@ -737,7 +737,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 			glPushMatrix();
 			glLoadIdentity();
 			if (x_scale > 1.0 || y_scale > 1.0) {
-				glScalef(x_scale, y_scale, 1.0);
+				glScalef((GLfloat)x_scale, (GLfloat)y_scale, 1.0f);
 			} else {
 				x_scale = 1.0;
 				y_scale = 1.0;
