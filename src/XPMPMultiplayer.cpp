@@ -402,6 +402,10 @@ void XPMPMultiplayerDisable(void)
 	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
 }
 
+bool XPMPHasControlOfAIAircraft(void)
+{
+    return gHasControlOfAIAircraft;
+}
 
 const char * 	XPMPLoadCSLPackage(
 		const char * inCSLFolder, const char * inRelatedPath, const char * inDoc8643)
