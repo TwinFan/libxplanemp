@@ -48,7 +48,7 @@ endif()
 	add_definitions(-DBITMAP_USE_PNG=1)
 #endif()
 
-add_definitions(-DXPLM200=1 -DXPLM210=1 -DXPLM300=1 -DXPLM301=1)
+add_definitions(-DXPLM200=1 -DXPLM210=1)
 
 add_library(xplanemp
 	${XPMP_PLATFORM_SOURCES}
