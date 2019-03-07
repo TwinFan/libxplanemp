@@ -289,13 +289,13 @@ const char * 	XPMPMultiplayerInit(
 	XPMPInitDefaultPlaneRenderer();
 
 	// Register the plane control calls.
-    // change num of planes when drawing gauges (for TCAS display)
+    // change num of planes when drawing airplanes (for TCAS display, but not for 3D airplane rendering)
 	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Gauges, 0, /* after*/ 0 /* hide planes*/))
+							 xplm_Phase_Airplanes, 1, /* before*/ 0 /* hide planes*/))
         problem=true;
 
 	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Gauges, 1, /* before */ (void *) -1 /* show planes*/))
+							 xplm_Phase_Airplanes, 0, /* after */ (void *) -1 /* show planes*/))
         problem=true;
 
 	// Register the actual drawing func.
@@ -368,13 +368,17 @@ const  char * XPMPMultiplayerEnable(void)
 		XPLMPluginID	who;
 
 		XPLMCountAircraft(&total, &active, &who);
+        
+        // Disable AI for the planes...we move them now
+        for (int i = 1; i < total; i++)
+            XPLMDisableAIForPlane(i);
 
 		// Register the plane control calls.
 		XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-			xplm_Phase_Gauges, 0, /* after*/ 0 /* hide planes*/);
+			xplm_Phase_Airplanes, 1, /* before*/ 0 /* hide planes*/);
 
 		XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-			xplm_Phase_Gauges, 1, /* before */ (void *) -1 /* show planes*/);
+			xplm_Phase_Airplanes, 0, /* after */ (void *) -1 /* show planes*/);
 	} else {
 		gHasControlOfAIAircraft = false;
 		XPLMDebugString("WARNING: " XPMP_CLIENT_LONGNAME " did not acquire multiplayer planes!!\n");
@@ -395,8 +399,8 @@ void XPMPMultiplayerDisable(void)
 		XPLMReleasePlanes();
 		gHasControlOfAIAircraft = false;
 
-		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 0, 0);
-		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Gauges, 1, (void *) -1);
+		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Airplanes, 1, 0);
+		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Airplanes, 0, (void *) -1);
 	}
 
 	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
@@ -791,7 +795,10 @@ void		XPMPSetPlaneRenderer(
  ********************************************************************************/
 
 // This callback ping-pongs the multiplayer count up and back depending 
-// on whether we're drawing the TCAS gauges or not.
+// on whether we're drawing airplanes or not.
+// (before airplane drawing: reset to 1, so that no AI models are drawn by X-Plane,
+//  after airplane drawing: back up to the actual number of TCAS aircrafts,
+//                          so that everbody believes these many AI aircrafts are out there.)
 int	XPMPControlPlaneCount(
 		XPLMDrawingPhase     /*inPhase*/,
 		int                  /*inIsBefore*/,

@@ -234,6 +234,8 @@ struct	XPMPPlane_t {
 	ObjManager::TransientState      objState;
 	TextureManager::TransientState  texState;
 	TextureManager::TransientState  texLitState;
+    
+    int                     multiIdx = -1;       // which sim/multiplayer/plane-index used last?
 };
 
 typedef	XPMPPlane_t *								XPMPPlanePtr;

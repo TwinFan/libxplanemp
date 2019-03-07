@@ -67,9 +67,21 @@
 
 extern bool	gHasControlOfAIAircraft;
 
-std::vector<XPLMDataRef>			gMultiRef_X;
-std::vector<XPLMDataRef>			gMultiRef_Y;
-std::vector<XPLMDataRef>			gMultiRef_Z;
+struct multiDataRefsTy {
+    XPLMDataRef X;
+    XPLMDataRef Y;
+    XPLMDataRef Z;
+    XPLMDataRef pitch;      // theta
+    XPLMDataRef roll;       // phi
+    XPLMDataRef heading;    // psi
+    
+    bool        bSlotTaken = false; // during drawing: is this multiplayer plane idx used or not?
+    
+    // all OK?
+    inline operator bool () const { return X && Y && Z && pitch && roll && heading; }
+};
+
+std::vector<multiDataRefsTy>        gMultiRef;
 
 bool gDrawLabels = true;
 
@@ -253,25 +265,25 @@ void			XPMPInitDefaultPlaneRenderer(void)
 #endif		
 
 	// We don't know how many multiplayer planes there are - fetch as many as we can.
-
-	int 		n = 1;
+    gMultiRef.clear();                  // just a safety measure against multi init
 	char		buf[100];
-	XPLMDataRef	d;
-	while (1)
+	multiDataRefsTy	d;
+    for (int n=1; true; n++)
 	{
 		sprintf(buf,"sim/multiplayer/position/plane%d_x", n);
-		d = XPLMFindDataRef(buf);
-		if (!d) break;
-		gMultiRef_X.push_back(d);
+		d.X = XPLMFindDataRef(buf);
 		sprintf(buf,"sim/multiplayer/position/plane%d_y", n);
-		d = XPLMFindDataRef(buf);
-		if (!d) break;
-		gMultiRef_Y.push_back(d);
+		d.Y = XPLMFindDataRef(buf);
 		sprintf(buf,"sim/multiplayer/position/plane%d_z", n);
-		d = XPLMFindDataRef(buf);
+		d.Z = XPLMFindDataRef(buf);
+        sprintf(buf,"sim/multiplayer/position/plane%d_the", n);
+        d.pitch = XPLMFindDataRef(buf);
+        sprintf(buf,"sim/multiplayer/position/plane%d_phi", n);
+        d.roll = XPLMFindDataRef(buf);
+        sprintf(buf,"sim/multiplayer/position/plane%d_psi", n);
+        d.heading = XPLMFindDataRef(buf);
 		if (!d) break;
-		gMultiRef_Z.push_back(d);
-		++n;
+		gMultiRef.push_back(d);
 	}
 }
 
@@ -358,9 +370,8 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	gTotPlanes = (int)planeCount;
 	gNavPlanes = gACFPlanes = gOBJPlanes = 0;
 
-	int modelCount, active, plugin, tcas;
+	int modelCount, active, plugin;
 	XPLMCountAircraft(&modelCount, &active, &plugin);
-	tcas = modelCount - 1;	// This is how many tcas blips we can have!
 
 	RenderMap						myPlanes;		// Planes - sorted by distance so we can do the closest N and bail
 	
@@ -387,7 +398,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	// Go through every plane.  We're going to figure out if it is visible and if so remember it for drawing later.
 	for (long index = 0; index < planeCount; ++index)
 	{
-		XPMPPlaneID id = XPMPGetNthPlane(index);
+		XPMPPlanePtr id = static_cast<XPMPPlanePtr>(XPMPGetNthPlane(index));
 		
 		XPMPPlanePosition_t	pos;
 		pos.size = sizeof(pos);
@@ -406,8 +417,10 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 														static_cast<float>(z)));
 			
 			// If the plane is farther than our TCAS range, it's just not visible.  Drop it!
-			if (distMeters > kMaxDistTCAS)
+            if (distMeters > kMaxDistTCAS) {
+                id->multiIdx = -1;
 				continue;
+            }
 
 			// Only draw if it's in range.
 			bool cull = (distMeters > maxDist);
@@ -450,6 +463,9 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 					x, y, z, pos.pitch, pos.roll, pos.heading);
 			XPLMDebugString(debug);
 #endif
+            // Not on TCAS? Then it occupies no multiplayer idx
+            if (!tcas)
+                id->multiIdx = -1;
 
 			// Stash one render record with the plane's position, etc.
 			{
@@ -504,6 +520,35 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 	if (gDumpOneRenderCycle)
 		XPLMDebugString("End of cycle dump.\n");
+    
+    /************************************************************************************
+     * Prepare multiplayer indexes
+     ************************************************************************************/
+
+    // We want a plane to keep its index as long as it shows. The eases following it
+    // from other plugins (TCAS, maps...etc)
+    // The plane's multiplayer idx is in XPMPPlane_t::multiIdx
+    if (gHasControlOfAIAircraft)
+    {
+        // reset our bookkeeping on used multiplay idx
+        for (multiDataRefsTy& iter: gMultiRef)
+            iter.bSlotTaken = false;
+        
+        // run over all known planes in order of distance(!) and set those multiplayer idx used, which are takem
+        int numTcasPlanes = 0;
+        for (RenderMap::iterator iter = myPlanes.begin();
+             iter != myPlanes.end() && numTcasPlanes < gMultiRef.size();      // at most as often as we found TCAS-relevant planes
+             ++iter)
+        {
+            if (iter->second.tcas) {                                // TCAS relevant?
+                XPMPPlanePtr p = iter->second.plane;
+                if (p->multiIdx >= 0 &&
+                    p->multiIdx < gMultiRef.size())
+                    gMultiRef[p->multiIdx].bSlotTaken = true;       // has a 'resevred' multiplayer idx
+                numTcasPlanes++;                                  // one more TCAS plane found
+            }
+        }
+    }
 	
 	/************************************************************************************
 	 * ACTUAL RENDERING LOOP
@@ -516,6 +561,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	// OGL order.
 	
 	size_t	renderedCounter = 0;
+    int     maxMultiIdxUsed = 0;
 
 	vector<PlaneToRender_t *>			planes_obj_lites;
 	multimap<int, PlaneToRender_t *>	planes_austin;
@@ -600,12 +646,28 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 		}
 
 		// TCAS handling - if the plane needs to be drawn on TCAS and we haven't yet, move one of Austin's planes.
-		if (iter->second.tcas && renderedCounter < gMultiRef_X.size() && gHasControlOfAIAircraft)
+		if (iter->second.tcas && renderedCounter < gMultiRef.size() && gHasControlOfAIAircraft)
 		{
-			XPLMSetDataf(gMultiRef_X[renderedCounter], iter->second.x);
-			XPLMSetDataf(gMultiRef_Y[renderedCounter], iter->second.y);
-			XPLMSetDataf(gMultiRef_Z[renderedCounter], iter->second.z);
-			++renderedCounter;
+            // figure out the multiplayer idx to use
+            int idx = iter->second.plane->multiIdx;
+            if (idx < 0 || idx >= gMultiRef.size())         // none assinged yet -> find one!
+            {
+                for (idx = 0; idx < gMultiRef.size() && gMultiRef[idx].bSlotTaken; idx++);
+            }
+            
+            if (0 <= idx && idx < gMultiRef.size()) {
+                XPLMSetDataf(gMultiRef[idx].X,      iter->second.x);
+                XPLMSetDataf(gMultiRef[idx].Y,      iter->second.y);
+                XPLMSetDataf(gMultiRef[idx].Z,      iter->second.z);
+                XPLMSetDataf(gMultiRef[idx].pitch,  iter->second.plane->pos.pitch);
+                XPLMSetDataf(gMultiRef[idx].roll,   iter->second.plane->pos.roll);
+                XPLMSetDataf(gMultiRef[idx].heading,iter->second.plane->pos.heading);
+                gMultiRef[idx].bSlotTaken = true;           // this slot taken
+                iter->second.plane->multiIdx = idx;         // save for reuse
+                if (idx > maxMultiIdxUsed)                  // remember the highest idx used
+                    maxMultiIdxUsed = idx;
+                ++renderedCounter;
+            }
 		}
 	}
 	
@@ -779,9 +841,21 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 	
 	// Final hack - leave a note to ourselves for how many of Austin's planes we relocated to do TCAS.
-	if (tcas > static_cast<int>(renderedCounter))
-		tcas = static_cast<int>(renderedCounter);
-	gEnableCount = (tcas+1);
+	gEnableCount = (maxMultiIdxUsed+1);
+    // As some plugins don't consider XPLMCountAircraft let's cleanup unused multiplayer datarefs
+    for (int i=0; gHasControlOfAIAircraft && i < gMultiRef.size(); i++)
+    {
+        // if not used reset all values
+        if (!gMultiRef[i].bSlotTaken) {
+            XPLMSetDataf(gMultiRef[renderedCounter].X,      0.0f);
+            XPLMSetDataf(gMultiRef[renderedCounter].Y,      0.0f);
+            XPLMSetDataf(gMultiRef[renderedCounter].Z,      0.0f);
+            XPLMSetDataf(gMultiRef[renderedCounter].pitch,  0.0f);
+            XPLMSetDataf(gMultiRef[renderedCounter].roll,   0.0f);
+            XPLMSetDataf(gMultiRef[renderedCounter].heading,0.0f);
+        }
+    }
+
 	
 	gDumpOneRenderCycle = 0;
 
