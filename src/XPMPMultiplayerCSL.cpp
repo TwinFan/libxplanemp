@@ -57,6 +57,61 @@ enum {
 	pass_Count
 };
 
+// count repeating message to limit filling up Log.txt
+// (This often happens when people use packages intended for X-IvAp, PE, or from X-CSL.)
+enum msgCntE {
+    OBJ8_AIRCRAFT_tooManyArgs = 0,
+    OBJ8_tooManyArgs,
+    OBJ8_invalidParts,
+    VERT_OFFSET_tooManyArgs,
+    msgCntE_cnt             // always last, number of elements
+};
+
+const char* MSG_SUPPRESED_TXT[msgCntE_cnt] = {
+    "WARNING: OBJ8_AIRCRAFT command takes 1 argument.",
+    "INFO: OBJ8 command takes only 3 arguments, rest ignored.",
+    "WARNING: valid OBJ8 part types are LIGHTS or SOLID.",
+    "WARNING: VERT_OFFSET command takes 1 argument."
+};
+
+struct MsgCntTy {
+    const int MSG_MAX_NUM=1;            // maximum number of repeating message
+    int cnt[msgCntE_cnt];               // counters of repeating msgs
+    
+    MsgCntTy() { memset (cnt, 0, sizeof(cnt)); }
+    
+    inline bool showAfterInc (msgCntE e) { return ++(cnt[e]) <= MSG_MAX_NUM; }
+    
+    void DumpResults(const char* fileName);
+} MsgCnt;
+
+// Tell user how many message we suppressed during parsing
+void MsgCntTy::DumpResults (const char* fileName)
+{
+    bool bFileShown = false;
+    char buf[255];
+    for (int e = 0; e < msgCntE_cnt; e++) {
+        if (cnt[e] > MSG_MAX_NUM) {
+            // first output the file name once
+            if (!bFileShown) {
+                snprintf(buf, sizeof(buf), XPMP_CLIENT_NAME " --- Parsing '%s':\n",
+                         fileName);
+                XPLMDebugString(buf);
+                bFileShown = true;
+            }
+            // output number of suppressed messages
+            snprintf(buf, sizeof(buf), XPMP_CLIENT_NAME ": Following message suppresed %d time(s): %s\n",
+                     cnt[e], MSG_SUPPRESED_TXT[e]);
+            XPLMDebugString(buf);
+        }
+        cnt[e] = 0;                 // reset counter once reported
+    }
+    
+    // to ease reading Log.txt we add an empty line if we output anything
+    if (bFileShown)
+        XPLMDebugString(XPMP_CLIENT_NAME " ---\n");
+}
+
 /************************************************************************
  * UTILITY ROUTINES
  ************************************************************************/
@@ -485,7 +540,10 @@ bool ParseObj8AircraftCommand(const std::vector<std::string> &tokens, CSLPackage
 	// OBJ8_AIRCRAFT <path>
 	if (tokens.size() != 2)
 	{
-		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8_AIRCRAFT command takes 1 argument.\n";
+        if (MsgCnt.showAfterInc(OBJ8_AIRCRAFT_tooManyArgs))
+            XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8_AIRCRAFT command takes 1 argument.\n";
+        if (tokens.size() < 2)
+            return false;
 	}
 
 	package.planes.push_back(CSLPlane_t());
@@ -513,7 +571,7 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: OBJ8 command takes 3 arguments.\n";
         return false;
 	}
-    if (tokens.size() > 4)
+    if (tokens.size() > 4 && MsgCnt.showAfterInc(OBJ8_tooManyArgs))
         XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " INFO: OBJ8 command takes only 3 arguments, rest ignored.\n";
 
 	// err - obj8 record at stupid place in file
@@ -530,7 +588,8 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 		att.draw_type = draw_solid;
 	else {
 		// err crap enum
-		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: valid OBJ8 part types are LIGHTS or SOLID.  Got " << tokens[1] << ".\n";
+        if (MsgCnt.showAfterInc(OBJ8_invalidParts))
+            XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: valid OBJ8 part types are LIGHTS or SOLID.  Got " << tokens[1] << ".\n";
 	}
 	if(tokens[2] == "YES")
 		att.needs_animation = true;
@@ -578,7 +637,8 @@ bool ParseVertOffsetCommand(const std::vector<std::string> &tokens, CSLPackage_t
 	// this is the csl-model vertical offset for accurately putting planes onto the ground.
 	if (tokens.size() != 2) 
 	{
-		XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET command takes 1 argument.\n";
+        if (MsgCnt.showAfterInc(VERT_OFFSET_tooManyArgs))
+            XPLMDump(path, lineNum, line) << XPMP_CLIENT_NAME " WARNING: VERT_OFFSET command takes 1 argument.\n";
 		return false;
 	}
 	else 
@@ -808,6 +868,9 @@ void ParseFullPackage(const std::string &content, CSLPackage_t &package)
 			}
 		}
 	}
+    
+    // Dump info about suppressed warnings to Log.txt and reset counters
+    MsgCnt.DumpResults(packageFilePath.c_str());
 }
 
 bool isPackageAlreadyLoaded(const std::string &packagePath)
