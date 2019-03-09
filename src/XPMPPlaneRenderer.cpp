@@ -291,6 +291,20 @@ void XPMPDeinitDefaultPlaneRenderer() {
 	XPLMDestroyProbe(terrainProbe);
 }
 
+// reset all (controlled) multiplayer dataRef values
+void XPMPInitMultiplayerDataRefs() {
+    for (multiDataRefsTy& mdr : gMultiRef)
+    {
+        mdr.bSlotTaken = false;
+        XPLMSetDataf(mdr.X, 0.0f);
+        XPLMSetDataf(mdr.Y, 0.0f);
+        XPLMSetDataf(mdr.Z, 0.0f);
+        XPLMSetDataf(mdr.pitch, 0.0f);
+        XPLMSetDataf(mdr.roll, 0.0f);
+        XPLMSetDataf(mdr.heading, 0.0f);
+    }
+}
+
 /* correctYValue returns the clamped Z value given the input X, Y and Z and the
  * known vertical offset of the aircraft model.
 */
@@ -843,19 +857,20 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	// Final hack - leave a note to ourselves for how many of Austin's planes we relocated to do TCAS.
 	gEnableCount = (maxMultiIdxUsed+1);
     // As some plugins don't consider XPLMCountAircraft let's cleanup unused multiplayer datarefs
-    for (int i=0; gHasControlOfAIAircraft && i < gMultiRef.size(); i++)
-    {
-        // if not used reset all values
-        if (!gMultiRef[i].bSlotTaken) {
-            XPLMSetDataf(gMultiRef[renderedCounter].X,      0.0f);
-            XPLMSetDataf(gMultiRef[renderedCounter].Y,      0.0f);
-            XPLMSetDataf(gMultiRef[renderedCounter].Z,      0.0f);
-            XPLMSetDataf(gMultiRef[renderedCounter].pitch,  0.0f);
-            XPLMSetDataf(gMultiRef[renderedCounter].roll,   0.0f);
-            XPLMSetDataf(gMultiRef[renderedCounter].heading,0.0f);
+    if (gHasControlOfAIAircraft) {
+        for (multiDataRefsTy& mdr : gMultiRef)
+        {
+            // if not used reset all values
+            if (!mdr.bSlotTaken) {
+                XPLMSetDataf(mdr.X, 0.0f);
+                XPLMSetDataf(mdr.Y, 0.0f);
+                XPLMSetDataf(mdr.Z, 0.0f);
+                XPLMSetDataf(mdr.pitch, 0.0f);
+                XPLMSetDataf(mdr.roll, 0.0f);
+                XPLMSetDataf(mdr.heading, 0.0f);
+            }
         }
     }
-
 	
 	gDumpOneRenderCycle = 0;
 

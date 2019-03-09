@@ -373,6 +373,9 @@ const  char * XPMPMultiplayerEnable(void)
         for (int i = 1; i < total; i++)
             XPLMDisableAIForPlane(i);
 
+        // Cleanup multiplayer values...we are in control now
+        XPMPInitMultiplayerDataRefs();
+
 		// Register the plane control calls.
 		XPLMRegisterDrawCallback(XPMPControlPlaneCount,
 			xplm_Phase_Airplanes, 1, /* before*/ 0 /* hide planes*/);
