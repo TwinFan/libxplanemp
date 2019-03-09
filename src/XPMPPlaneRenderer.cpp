@@ -66,7 +66,7 @@
 #define		MAX_LABEL_DIST			5000.0
 
 extern bool	gHasControlOfAIAircraft;
-
+const float FAR_AWAY_VAL_GL = 9999999.9f;    // don't dare using NAN...but with this coordinate for x/y/z a plane should be far out and virtually invisible
 struct multiDataRefsTy {
     XPLMDataRef X;
     XPLMDataRef Y;
@@ -293,16 +293,17 @@ void XPMPDeinitDefaultPlaneRenderer() {
 
 // reset all (controlled) multiplayer dataRef values
 void XPMPInitMultiplayerDataRefs() {
-    for (multiDataRefsTy& mdr : gMultiRef)
-    {
-        mdr.bSlotTaken = false;
-        XPLMSetDataf(mdr.X, 0.0f);
-        XPLMSetDataf(mdr.Y, 0.0f);
-        XPLMSetDataf(mdr.Z, 0.0f);
-        XPLMSetDataf(mdr.pitch, 0.0f);
-        XPLMSetDataf(mdr.roll, 0.0f);
-        XPLMSetDataf(mdr.heading, 0.0f);
-    }
+    if (gHasControlOfAIAircraft)
+        for (multiDataRefsTy& mdr : gMultiRef)
+        {
+            mdr.bSlotTaken = false;
+            XPLMSetDataf(mdr.X, FAR_AWAY_VAL_GL);
+            XPLMSetDataf(mdr.Y, FAR_AWAY_VAL_GL);
+            XPLMSetDataf(mdr.Z, FAR_AWAY_VAL_GL);
+            XPLMSetDataf(mdr.pitch, 0.0f);
+            XPLMSetDataf(mdr.roll, 0.0f);
+            XPLMSetDataf(mdr.heading, 0.0f);
+        }
 }
 
 /* correctYValue returns the clamped Z value given the input X, Y and Z and the
@@ -353,6 +354,9 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 #endif
 	if (planeCount == 0)		// Quick exit if no one's around.
 	{
+        // make sure multiplayer dataRefs are cleaned
+        XPMPInitMultiplayerDataRefs();
+        
 		if (gDumpOneRenderCycle)
 		{
 			gDumpOneRenderCycle = false;
@@ -862,9 +866,9 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
         {
             // if not used reset all values
             if (!mdr.bSlotTaken) {
-                XPLMSetDataf(mdr.X, 0.0f);
-                XPLMSetDataf(mdr.Y, 0.0f);
-                XPLMSetDataf(mdr.Z, 0.0f);
+                XPLMSetDataf(mdr.X, FAR_AWAY_VAL_GL);
+                XPLMSetDataf(mdr.Y, FAR_AWAY_VAL_GL);
+                XPLMSetDataf(mdr.Z, FAR_AWAY_VAL_GL);
                 XPLMSetDataf(mdr.pitch, 0.0f);
                 XPLMSetDataf(mdr.roll, 0.0f);
                 XPLMSetDataf(mdr.heading, 0.0f);
