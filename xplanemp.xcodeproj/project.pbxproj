@@ -241,6 +241,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				Base,
 			);
 			mainGroup = 2544F4AD20791654002FAA4C;
 			productRefGroup = 2544F4B820791654002FAA4C /* Products */;
@@ -458,7 +459,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.TwinFan.xplanemp;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
-				SYSTEM_FRAMEWORK_SEARCH_PATHS = /Users/birger/Programming/Frameworks;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = "/Users/birger/Programming/Frameworks-debug";
 			};
 			name = Debug;
 		};
@@ -486,7 +487,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.TwinFan.xplanemp;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
-				SYSTEM_FRAMEWORK_SEARCH_PATHS = /Users/birger/Programming/Frameworks;
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = "/Users/birger/Programming/Frameworks-release";
 			};
 			name = Release;
 		};

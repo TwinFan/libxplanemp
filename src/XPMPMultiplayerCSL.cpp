@@ -584,7 +584,7 @@ bool ParseObj8Command(const std::vector<std::string> &tokens, CSLPackage_t &pack
 
 	if(tokens[1] == "LIGHTS")
 		att.draw_type = draw_lights;
-	if(tokens[1] == "SOLID")
+	else if(tokens[1] == "SOLID")
 		att.draw_type = draw_solid;
 	else {
 		// err crap enum
