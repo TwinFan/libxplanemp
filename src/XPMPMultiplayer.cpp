@@ -288,16 +288,6 @@ const char * 	XPMPMultiplayerInit(
 
 	XPMPInitDefaultPlaneRenderer();
 
-	// Register the plane control calls.
-    // change num of planes when drawing airplanes (for TCAS display, but not for 3D airplane rendering)
-	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Airplanes, 1, /* before*/ 0 /* hide planes*/))
-        problem=true;
-
-	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Airplanes, 0, /* after */ (void *) -1 /* show planes*/))
-        problem=true;
-
 	// Register the actual drawing func.
 	if ( !XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
 							 xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */))
@@ -309,6 +299,7 @@ const char * 	XPMPMultiplayerInit(
 
 void XPMPMultiplayerCleanup(void)
 {
+    XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
 	XPMPDeinitDefaultPlaneRenderer();
 	OGLDEBUG(glDebugMessageCallback(NULL, NULL));
 }
@@ -389,10 +380,6 @@ const  char * XPMPMultiplayerEnable(void)
 		XPLMDebugString("    Make sure you remove any plugins that control multiplayer aircraft if you want these features to work\n");
 	}
 
-	// Register the actual drawing func.
-	XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
-		xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */);
-
 	return "";
 }
 
@@ -401,12 +388,12 @@ void XPMPMultiplayerDisable(void)
 	if (gHasControlOfAIAircraft) {
 		XPLMReleasePlanes();
 		gHasControlOfAIAircraft = false;
+        gPlanePaths.clear();
 
 		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Airplanes, 1, 0);
 		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Airplanes, 0, (void *) -1);
 	}
 
-	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
 }
 
 bool XPMPHasControlOfAIAircraft(void)
