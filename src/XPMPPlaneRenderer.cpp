@@ -391,7 +391,9 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	int modelCount, active, plugin;
 	XPLMCountAircraft(&modelCount, &active, &plugin);
 
-	RenderMap						myPlanes;		// Planes - sorted by distance so we can do the closest N and bail
+    // Planes - sorted by (prio x distance) so we can do the closest N and bail
+    //
+	RenderMap						myPlanes;
 	
 	/************************************************************************************
 	 * CULLING AND STATE CALCULATION LOOP
@@ -528,7 +530,10 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 					renderRecord.plane->surface.gearPosition = 1.0;
 				renderRecord.full = drawFullPlane;
 				renderRecord.dist = distMeters;
-				myPlanes.insert(RenderMap::value_type(distMeters, renderRecord));
+                // myPlanes is sorted first by aiPrio, then by distance...roughly
+                // We achieve that by adding a high constant value per prio:
+				myPlanes.emplace(pos.aiPrio * kMaxDistTCAS + distMeters,
+                                 renderRecord);
 
 			} // State calculation
 			
@@ -560,10 +565,41 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
         {
             if (iter->second.tcas) {                                // TCAS relevant?
                 XPMPPlanePtr p = iter->second.plane;
-                if (p->multiIdx >= 0 &&
-                    p->multiIdx < gMultiRef.size())
-                    gMultiRef[p->multiIdx].bSlotTaken = true;       // has a 'resevred' multiplayer idx
-                numTcasPlanes++;                                  // one more TCAS plane found
+                
+                // There are usually 19 slots for multiplayer planes.
+                // But the user might have set up less actual AI planes.
+                // Some plugins (including XP's own map)consider this number,
+                // others doen't.
+                // Our approach: We make sure the first modelCount slots
+                // are used by the closest a/c! The others fill up with those
+                // father away.
+                
+                // The lower index part, safe to display in all plugins/maps
+                if (numTcasPlanes < modelCount  )
+                {
+                    // current plane MUST get a slot in this range
+                    if (0 <= p->multiIdx && p->multiIdx < modelCount)
+                        // it has a reserved one, good
+                        gMultiRef[p->multiIdx].bSlotTaken = true;
+                    else
+                        p->multiIdx = -1;           // it will get one later
+                } else {
+                    // the part of multiplay indexes beyond the safe range
+                    // If the current plane has a slot in the lower part
+                    // it must free up the lower part.
+                    // current plane MUST get a slot in this range
+                    if (0 <= p->multiIdx && p->multiIdx < modelCount)
+                        p->multiIdx = -1;           // it might get one later
+                    // If the plane has a reserved slot in this part it keeps it
+                    else if (modelCount <= p->multiIdx && p->multiIdx < gMultiRef.size())
+                        // it has a reserved one, good
+                        gMultiRef[p->multiIdx].bSlotTaken = true;
+                    else
+                        p->multiIdx = -1;           // it might get one later
+                }
+                
+                // one more TCAS plane found
+                numTcasPlanes++;
             }
         }
     }
@@ -828,7 +864,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 			}
 
 			for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
-				if(iter->first < labelDist)
+				if(iter->second.dist < labelDist)
 					if(!iter->second.cull)		// IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
 					{
 						float x, y;
@@ -838,7 +874,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
                         // rat is between 0.0 (plane very close) and 1.0 (shortly before label cut-off):
                         // and defines how much we move towards light gray for distance
                         const PlaneToRender_t& ptr = iter->second;
-                        const float rat = iter->first / static_cast<float>(labelDist);
+                        const float rat = iter->second.dist / static_cast<float>(labelDist);
                         constexpr float gray[4] = {0.6f, 0.6f, 0.6f, 1.0f};
                         float c[4] = {
                             (1.0f-rat) * ptr.plane->pos.label_color[0] + rat * gray[0],     // red
