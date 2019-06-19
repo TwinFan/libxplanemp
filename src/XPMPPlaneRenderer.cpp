@@ -532,7 +532,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 				renderRecord.dist = distMeters;
                 // myPlanes is sorted first by aiPrio, then by distance...roughly
                 // We achieve that by adding a high constant value per prio:
-				myPlanes.emplace(pos.aiPrio * kMaxDistTCAS + distMeters,
+				myPlanes.emplace(float(pos.aiPrio * kMaxDistTCAS + distMeters),
                                  renderRecord);
 
 			} // State calculation
@@ -724,9 +724,9 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
                                  nextPos.lon,
                                  nextPos.elevation * kFtToMeters,
                                  &aiX, &aiY, &aiZ);
-                XPLMSetDataf(gMultiRef[idx].X,      aiX);
-                XPLMSetDataf(gMultiRef[idx].Y,      aiY);
-                XPLMSetDataf(gMultiRef[idx].Z,      aiZ);
+                XPLMSetDataf(gMultiRef[idx].X,      (float)aiX);
+                XPLMSetDataf(gMultiRef[idx].Y,      (float)aiY);
+                XPLMSetDataf(gMultiRef[idx].Z,      (float)aiZ);
                 XPLMSetDataf(gMultiRef[idx].pitch,  nextPos.pitch);
                 XPLMSetDataf(gMultiRef[idx].roll,   nextPos.roll);
                 XPLMSetDataf(gMultiRef[idx].heading,nextPos.heading);
