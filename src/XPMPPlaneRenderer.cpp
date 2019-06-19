@@ -710,12 +710,26 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
             }
             
             if (0 <= idx && idx < gMultiRef.size()) {
-                XPLMSetDataf(gMultiRef[idx].X,      iter->second.x);
-                XPLMSetDataf(gMultiRef[idx].Y,      iter->second.y);
-                XPLMSetDataf(gMultiRef[idx].Z,      iter->second.z);
-                XPLMSetDataf(gMultiRef[idx].pitch,  iter->second.plane->pos.pitch);
-                XPLMSetDataf(gMultiRef[idx].roll,   iter->second.plane->pos.roll);
-                XPLMSetDataf(gMultiRef[idx].heading,iter->second.plane->pos.heading);
+                // HACK to reduce jitter in external camera applications:
+                // We drew the plane at the _previous_ frame's position,
+                // because this is the position known to the camera app;
+                // the camera app's callback to retrieve camera position is already
+                // called by this time and the camera position might base on
+                // the multiplayer dataRefs...of the _previous_ frame.
+                // From the application we pull the _next_ frame,
+                // which is the pos to be reported in the multiplayer vars:
+                const XPMPPlanePosition_t& nextPos = iter->second.plane->nextPos;
+                double aiX, aiY, aiZ;
+                XPLMWorldToLocal(nextPos.lat,
+                                 nextPos.lon,
+                                 nextPos.elevation * kFtToMeters,
+                                 &aiX, &aiY, &aiZ);
+                XPLMSetDataf(gMultiRef[idx].X,      aiX);
+                XPLMSetDataf(gMultiRef[idx].Y,      aiY);
+                XPLMSetDataf(gMultiRef[idx].Z,      aiZ);
+                XPLMSetDataf(gMultiRef[idx].pitch,  nextPos.pitch);
+                XPLMSetDataf(gMultiRef[idx].roll,   nextPos.roll);
+                XPLMSetDataf(gMultiRef[idx].heading,nextPos.heading);
                 gMultiRef[idx].bSlotTaken = true;           // this slot taken
                 iter->second.plane->multiIdx = idx;         // save for reuse
                 if (idx > maxMultiIdxUsed)                  // remember the highest idx used

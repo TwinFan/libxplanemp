@@ -221,6 +221,7 @@ struct	XPMPPlane_t {
 	// This is last known data we got for the plane, with timestamps.
 	int						posAge;
 	XPMPPlanePosition_t		pos;
+    XPMPPlanePosition_t     nextPos;        // next cycle's position
 
 	int						surfaceAge;
 	XPMPPlaneSurfaces_t		surface;

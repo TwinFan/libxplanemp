@@ -713,7 +713,16 @@ XPMPPlaneCallbackResult			XPMPGetPlaneData(
 	{
 		if (plane->posAge != now)
 		{
-			result = plane->dataFunc(plane, inDataType, &plane->pos, plane->ref);
+            // HACK to reduce jitter in external camera applications:
+            // We draw the plane at the _previous_ frame's position,
+            // because this is the position known to the camera app;
+            // the camera app's callback to retrieve camera position is already
+            // called by this time and the camera position might base on
+            // the multiplayer dataRefs...of the _previous_ frame.
+            // From the application we pull the _next_ frame,
+            // which is the pos to be reported in the multiplayer vars
+            plane->pos = plane->nextPos;
+            result = plane->dataFunc(plane, inDataType, &plane->nextPos, plane->ref);
 			if (result == xpmpData_NewData)
 				plane->posAge = now;
 		}
