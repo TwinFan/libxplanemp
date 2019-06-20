@@ -61,9 +61,11 @@ XPMP_TMAX(const T& a, const T& b)
 }
 
 
-const	double	kFtToMeters = 0.3048;
-const	double	kMaxDistTCAS = 40.0 * 6080.0 * kFtToMeters;
-
+constexpr double    kFtToMeters = 0.3048;
+constexpr double    kNmToMeters = 1852.0;
+/// Each AI Prio level is equivalent to 10nm additional distance
+constexpr double kAIPrioMultiplierMeters = 10 * kNmToMeters;
+constexpr int       kSlotChangePeriod = 30; // seconds
 
 /****************** MODEL MATCHING CRAP ***************/
 
