@@ -224,6 +224,10 @@ struct	XPMPPlane_t {
 	int						posAge;
 	XPMPPlanePosition_t		pos;
     XPMPPlanePosition_t     nextPos;        // next cycle's position
+    
+    // this is data from about a second ago to calculate cartesian velocities
+    double                  prev_x = 0.0f, prev_y = 0.0f, prev_z = 0.0f;
+    std::chrono::steady_clock::time_point prev_ts;
 
 	int						surfaceAge;
 	XPMPPlaneSurfaces_t		surface;

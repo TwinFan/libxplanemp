@@ -66,14 +66,38 @@
 #define		MAX_LABEL_DIST			5000.0
 
 extern bool	gHasControlOfAIAircraft;
-const float FAR_AWAY_VAL_GL = 9999999.9f;    // don't dare using NAN...but with this coordinate for x/y/z a plane should be far out and virtually invisible
+constexpr float FAR_AWAY_VAL_GL = 9999999.9f;    // don't dare using NAN...but with this coordinate for x/y/z a plane should be far out and virtually invisible
+float fNull[10] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 struct multiDataRefsTy {
-    XPLMDataRef X;
+    XPLMDataRef X;          // position
     XPLMDataRef Y;
     XPLMDataRef Z;
+    
+    XPLMDataRef v_x;        // cartesian velocities
+    XPLMDataRef v_y;
+    XPLMDataRef v_z;
+    
     XPLMDataRef pitch;      // theta
     XPLMDataRef roll;       // phi
     XPLMDataRef heading;    // psi
+    
+    XPLMDataRef gear;       // gear_deploy[10]
+    XPLMDataRef flap;       // flap_ratio
+    XPLMDataRef flap2;      // flap_ratio2
+    XPLMDataRef spoiler;    // spoiler_ratio
+    XPLMDataRef speedbrake; // speedbrake
+    XPLMDataRef slat;       // slat_ratio
+    XPLMDataRef wingSweep;  // wing_sweep
+    XPLMDataRef throttle;   // throttle[8]
+    XPLMDataRef yoke_pitch; // yolk_pitch
+    XPLMDataRef yoke_roll;  // yolk_roll
+    XPLMDataRef yoke_yaw;   // yolk_yaw
+    
+    XPLMDataRef bcnLights;  // beacon_lights_on
+    XPLMDataRef landLights; // landing_lights_on
+    XPLMDataRef navLights;  // nav_lights_on
+    XPLMDataRef strbLights; // strobe_lights_on
+    XPLMDataRef taxiLights; // taxi_light_on
     
     bool        bSlotTaken = false; // during drawing: is this multiplayer plane idx used or not?
     
@@ -268,21 +292,48 @@ void			XPMPInitDefaultPlaneRenderer(void)
     gMultiRef.clear();                  // just a safety measure against multi init
 	char		buf[100];
 	multiDataRefsTy	d;
+    
+#define FIND_PLANE_DR(membVar, dataRefTxt, PlaneNr)         \
+        sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);                    \
+        d.membVar = XPLMFindDataRef(buf);
+
     for (int n=1; true; n++)
 	{
-		sprintf(buf,"sim/multiplayer/position/plane%d_x", n);
-		d.X = XPLMFindDataRef(buf);
-		sprintf(buf,"sim/multiplayer/position/plane%d_y", n);
-		d.Y = XPLMFindDataRef(buf);
-		sprintf(buf,"sim/multiplayer/position/plane%d_z", n);
-		d.Z = XPLMFindDataRef(buf);
-        sprintf(buf,"sim/multiplayer/position/plane%d_the", n);
-        d.pitch = XPLMFindDataRef(buf);
-        sprintf(buf,"sim/multiplayer/position/plane%d_phi", n);
-        d.roll = XPLMFindDataRef(buf);
-        sprintf(buf,"sim/multiplayer/position/plane%d_psi", n);
-        d.heading = XPLMFindDataRef(buf);
-		if (!d) break;
+        // position
+        FIND_PLANE_DR(X,            "x", n);
+        FIND_PLANE_DR(Y,            "y", n);
+        FIND_PLANE_DR(Z,            "z", n);
+        // cartesian velocities
+        FIND_PLANE_DR(v_x,          "v_x", n);
+        FIND_PLANE_DR(v_y,          "v_y", n);
+        FIND_PLANE_DR(v_z,          "v_z", n);
+        // attitude
+        FIND_PLANE_DR(pitch,        "the", n);
+        FIND_PLANE_DR(roll,         "phi", n);
+        FIND_PLANE_DR(heading,      "psi", n);
+        // configuration
+        FIND_PLANE_DR(gear,         "gear_deploy", n);
+        FIND_PLANE_DR(flap,         "flap_ratio", n);
+        FIND_PLANE_DR(flap2,        "flap_ratio2", n);
+        FIND_PLANE_DR(spoiler,      "spoiler_ratio", n);
+        FIND_PLANE_DR(speedbrake,   "speedbrake_ratio", n);
+        FIND_PLANE_DR(slat,         "slat_ratio", n);
+        if (!d.slat) {
+            FIND_PLANE_DR(slat,     "sla1_ratio", n);
+        }
+        FIND_PLANE_DR(wingSweep,    "wing_sweep", n);
+        FIND_PLANE_DR(throttle,     "throttle", n);
+        FIND_PLANE_DR(yoke_pitch,   "yolk_pitch", n);
+        FIND_PLANE_DR(yoke_roll,    "yolk_roll", n);
+        FIND_PLANE_DR(yoke_yaw,     "yolk_yaw", n);
+        // lights
+        FIND_PLANE_DR(bcnLights,    "beacon_lights_on", n);
+        FIND_PLANE_DR(landLights,   "landing_lights_on", n);
+        FIND_PLANE_DR(navLights,    "nav_lights_on", n);
+        FIND_PLANE_DR(strbLights,   "strobe_lights_on", n);
+        FIND_PLANE_DR(taxiLights,   "taxi_light_on", n);
+
+        if (!d) break;
 		gMultiRef.push_back(d);
 	}
 }
@@ -297,9 +348,32 @@ void XPMPClearMultiplayerDataRefs (multiDataRefsTy& mdr)
     XPLMSetDataf(mdr.X, FAR_AWAY_VAL_GL);
     XPLMSetDataf(mdr.Y, FAR_AWAY_VAL_GL);
     XPLMSetDataf(mdr.Z, FAR_AWAY_VAL_GL);
+    
+    XPLMSetDataf(mdr.v_x, 0.0f);
+    XPLMSetDataf(mdr.v_y, 0.0f);
+    XPLMSetDataf(mdr.v_z, 0.0f);
+    
     XPLMSetDataf(mdr.pitch, 0.0f);
     XPLMSetDataf(mdr.roll, 0.0f);
     XPLMSetDataf(mdr.heading, 0.0f);
+    
+    XPLMSetDatavf(mdr.gear, fNull, 0, 10);
+    XPLMSetDataf(mdr.flap, 0.0f);
+    XPLMSetDataf(mdr.flap2, 0.0f);
+    XPLMSetDataf(mdr.spoiler, 0.0f);
+    XPLMSetDataf(mdr.speedbrake, 0.0f);
+    XPLMSetDataf(mdr.slat, 0.0f);
+    XPLMSetDataf(mdr.wingSweep, 0.0f);
+    XPLMSetDatavf(mdr.throttle, fNull, 0, 8);
+    XPLMSetDataf(mdr.yoke_pitch, 0.0f);
+    XPLMSetDataf(mdr.yoke_roll, 0.0f);
+    XPLMSetDataf(mdr.yoke_yaw, 0.0f);
+    
+    XPLMSetDatai(mdr.bcnLights, 0);
+    XPLMSetDatai(mdr.landLights, 0);
+    XPLMSetDatai(mdr.navLights, 0);
+    XPLMSetDatai(mdr.strbLights, 0);
+    XPLMSetDatai(mdr.taxiLights, 0);
 }
 
 // reset all (controlled) multiplayer dataRef values
@@ -418,6 +492,7 @@ void XPMPMultiplayerHandling (RenderMap& myPlanes)
     // `modelCount` is the number of configured AI aircraft
     int modelCount, active, plugin;
     XPLMCountAircraft(&modelCount, &active, &plugin);
+    modelCount--;               // first one's the user plane, here we don't count that
 
     // reset our bookkeeping on used multiplay idx
     for (multiDataRefsTy& iter: gMultiRef)
@@ -497,11 +572,13 @@ void XPMPMultiplayerHandling (RenderMap& myPlanes)
         GetAndReserveNextAISlotNr(plane);
         
         // still no slot?
-        const int idx = plane.multiIdx;
-        if (idx < 0 || idx > gMultiRef.size())
+        if (plane.multiIdx < 0 || plane.multiIdx > gMultiRef.size())
             // skip
             continue;
-        
+        // this slot taken (safety measure...should not really be needed)
+        gMultiRef[plane.multiIdx].bSlotTaken = true;
+        const multiDataRefsTy& mdr = gMultiRef[plane.multiIdx];
+
         // HACK to reduce jitter in external camera applications:
         // The camera app's callback to retrieve camera position is called
         // _before_ any drawing happens. So what we do here is to provide
@@ -513,17 +590,68 @@ void XPMPMultiplayerHandling (RenderMap& myPlanes)
                          plane.nextPos.lon,
                          plane.nextPos.elevation * kFtToMeters,
                          &aiX, &aiY, &aiZ);
-        XPLMSetDataf(gMultiRef[idx].X,      (float)aiX);
-        XPLMSetDataf(gMultiRef[idx].Y,      (float)aiY);
-        XPLMSetDataf(gMultiRef[idx].Z,      (float)aiZ);
-        XPLMSetDataf(gMultiRef[idx].pitch,  plane.nextPos.pitch);
-        XPLMSetDataf(gMultiRef[idx].roll,   plane.nextPos.roll);
-        XPLMSetDataf(gMultiRef[idx].heading,plane.nextPos.heading);
-        gMultiRef[idx].bSlotTaken = true;           // this slot taken (safety measure...should not really be needed)
+        XPLMSetDataf(mdr.X,      (float)aiX);
+        XPLMSetDataf(mdr.Y,      (float)aiY);
+        XPLMSetDataf(mdr.Z,      (float)aiZ);
+        // attitude
+        XPLMSetDataf(mdr.pitch,  plane.nextPos.pitch);
+        XPLMSetDataf(mdr.roll,   plane.nextPos.roll);
+        XPLMSetDataf(mdr.heading,plane.nextPos.heading);
+        // configuration
+        float arrGear[10] = {
+            plane.surface.gearPosition, plane.surface.gearPosition, plane.surface.gearPosition,
+            plane.surface.gearPosition, plane.surface.gearPosition, plane.surface.gearPosition,
+            plane.surface.gearPosition, plane.surface.gearPosition, plane.surface.gearPosition,
+            plane.surface.gearPosition };
+        XPLMSetDatavf(mdr.gear, arrGear, 0, 10);
+        XPLMSetDataf(mdr.flap,  plane.surface.flapRatio);
+        XPLMSetDataf(mdr.flap2, plane.surface.flapRatio);
+        // [...]
+        XPLMSetDataf(mdr.yoke_pitch,    plane.surface.yokePitch);
+        XPLMSetDataf(mdr.yoke_roll,     plane.surface.yokeRoll);
+        XPLMSetDataf(mdr.yoke_yaw,      plane.surface.yokeHeading);
+        
+        // For performance reasons and because differences (cartesian velocity)
+        // are smoother if calculated over "longer" time frames,
+        // the following updates are done about every second only
+        if (tNow - plane.prev_ts > std::chrono::seconds(1))
+        {
+            // do we have any prev x/y/z values at all?
+            if (plane.prev_ts != std::chrono::steady_clock::time_point()) {
+                // yes, so we can calculate velocity
+                const std::chrono::duration<double, std::milli> dur_ms = tNow - plane.prev_ts;
+                const double d_s = dur_ms.count() / 1000.0;     // seconds with fractions
+                XPLMSetDataf(mdr.v_x, float((aiX - plane.prev_x) / d_s));
+                XPLMSetDataf(mdr.v_y, float((aiY - plane.prev_y) / d_s));
+                XPLMSetDataf(mdr.v_z, float((aiZ - plane.prev_z) / d_s));
+            }
+            plane.prev_x = aiX;
+            plane.prev_y = aiY;
+            plane.prev_z = aiZ;
+            plane.prev_ts = tNow;
+
+            // configuration (cont.)
+            XPLMSetDataf(mdr.spoiler,       plane.surface.spoilerRatio);
+            XPLMSetDataf(mdr.speedbrake,    plane.surface.speedBrakeRatio);
+            XPLMSetDataf(mdr.slat,          plane.surface.slatRatio);
+            XPLMSetDataf(mdr.wingSweep,     plane.surface.wingSweep);
+            float arrThrottle[8] = {
+                plane.surface.thrust, plane.surface.thrust, plane.surface.thrust,
+                plane.surface.thrust, plane.surface.thrust, plane.surface.thrust,
+                plane.surface.thrust, plane.surface.thrust };
+            XPLMSetDatavf(mdr.throttle,     arrThrottle, 0, 10);
+            // lights
+            XPLMSetDatai(mdr.bcnLights,     plane.surface.lights.bcnLights);
+            XPLMSetDatai(mdr.landLights,    plane.surface.lights.landLights);
+            XPLMSetDatai(mdr.navLights,     plane.surface.lights.navLights);
+            XPLMSetDatai(mdr.strbLights,    plane.surface.lights.strbLights);
+            XPLMSetDatai(mdr.taxiLights,    plane.surface.lights.taxiLights);
+
+        }
         
         // remember the highest idx used
-        if (idx > maxMultiIdxUsed)
-            maxMultiIdxUsed = idx;
+        if (plane.multiIdx > maxMultiIdxUsed)
+            maxMultiIdxUsed = plane.multiIdx;
         
         // count number of multiplayer planes reported...we can stop early if
         // all slots have been filled
