@@ -82,7 +82,7 @@ void	obj_schedule_one_aircraft(
 		double 					roll,
 		double 					heading,
 		int	   					full,		//
-		xpmp_LightStatus		lights,
+		XPMPPlaneSurfaces_t		surface,
 		XPLMPlaneDrawState_t *	state);
 
 

@@ -1362,7 +1362,7 @@ void			CSL_DrawObject(
 		double 					heading,
 		int						type,
 		int	   					full,
-		xpmp_LightStatus		lights,
+		XPMPPlaneSurfaces_t		surface,
 		XPLMPlaneDrawState_t *	state)
 {
 	// Setup OpenGL for this plane render
@@ -1398,7 +1398,7 @@ void			CSL_DrawObject(
 		break;
 	case plane_Lights:
 		OBJ_DrawLights(plane, distance,
-					   x, y ,z, pitch, roll, heading, lights);
+					   x, y ,z, pitch, roll, heading, surface.lights);
 
 		break;
 	case plane_Obj8:
@@ -1411,7 +1411,7 @@ void			CSL_DrawObject(
 					roll,
 					heading,
 					full,		//
-					lights,
+					surface,
 					state);
 		break;
 	}

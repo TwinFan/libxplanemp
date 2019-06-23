@@ -975,7 +975,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 							planeMapIter->second->plane->pos.heading,
 							plane_Austin,
 							planeMapIter->second->full ? 1 : 0,
-							planeMapIter->second->plane->surface.lights,
+							planeMapIter->second->plane->surface,
 							&planeMapIter->second->state);
 
 			if (planeMapIter->second->full)
@@ -1006,7 +1006,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 						plane_obj->plane->pos.heading,
 						plane_Obj,
 						plane_obj->full ? 1 : 0,
-						plane_obj->plane->surface.lights,
+						plane_obj->plane->surface,
 						&plane_obj->state);
 			++gOBJPlanes;
 		}
@@ -1023,7 +1023,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 						(*planeIter)->plane->pos.heading,
 						plane_Obj8,
 						(*planeIter)->full ? 1 : 0,
-						(*planeIter)->plane->surface.lights,
+						(*planeIter)->plane->surface,
 						&(*planeIter)->state);
 	}
 
@@ -1049,7 +1049,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 								(*planeIter)->plane->pos.heading,
 								plane_Lights,
 								(*planeIter)->full ? 1 : 0,
-								(*planeIter)->plane->surface.lights,
+								(*planeIter)->plane->surface,
 								&(*planeIter)->state);
 			}
 		}

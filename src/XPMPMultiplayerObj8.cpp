@@ -37,7 +37,7 @@ struct	one_inst {
 	one_inst * next;
 	
 	XPLMDrawInfo_t			location;
-	xpmp_LightStatus		lights;
+	XPMPPlaneSurfaces_t		surface;
 	XPLMPlaneDrawState_t *	state;
 	
 	~one_inst() { delete next; }
@@ -56,7 +56,7 @@ static	one_obj *	s_worklist = NULL;
 
 static one_inst *	s_cur_plane = NULL;
 
-enum {
+enum DR_VALUES {
 	gear_rat = 0,
 	flap_rat,
 	spoi_rat,
@@ -74,28 +74,60 @@ enum {
 	bcn_lite_on,
 	str_lite_on,
 	nav_lite_on,
+    
+    engine_rot_angle,
+    engine_rot_speed_rpm,
+    engine_rot_speed_rad,
+    prop_rot_angle,
+    prop_rot_speed_rpm,
+    prop_rot_speed_rad,
+    revers_rat,
+    
+    touch_down,
 	
 	dref_dim
 };
 
+// dataRef names are missing the root name. This will be
+// 1. always the text defined by XPMP_CLIENT_NAME, so that the dataRefs
+//    offered to CSL models are unique per application, but certainly require
+//    the models to access this unique dataRef name, wich usually will mean
+//    that their .obj files have to modified like CSL2XSB is supposed to offer it.
+// 2. _optionally_ _additonally_ the standard "libxplanemp" text, compatible with
+//    usual versions of CSL models but causing conflicts if several multiplayer clients
+//    are running in parallel. This is why experiences users may want to switch
+//    this backward compatibility off.
+// The application controls if "libxplanemp" is registered by the
+// integer config option "planes"/"dr_libxplanemp".
+const char * DREF_STD_ROOT = "libxplanemp";
 const char * dref_names[dref_dim] = {
-	"libxplanemp/controls/gear_ratio",
-	"libxplanemp/controls/flap_ratio",
-	"libxplanemp/controls/spoiler_ratio",
-	"libxplanemp/controls/speed_brake_ratio",
-	"libxplanemp/controls/slat_ratio",
-	"libxplanemp/controls/wing_sweep_ratio",
-	"libxplanemp/controls/thrust_ratio",
-	"libxplanemp/controls/yoke_pitch_ratio",
-	"libxplanemp/controls/yoke_heading_ratio",
-	"libxplanemp/controls/yoke_roll_ratio",
-	"libxplanemp/controls/thrust_revers",
+	"/controls/gear_ratio",
+	"/controls/flap_ratio",
+	"/controls/spoiler_ratio",
+	"/controls/speed_brake_ratio",
+	"/controls/slat_ratio",
+	"/controls/wing_sweep_ratio",
+	"/controls/thrust_ratio",
+	"/controls/yoke_pitch_ratio",
+	"/controls/yoke_heading_ratio",
+	"/controls/yoke_roll_ratio",
+	"/controls/thrust_revers",
 
-	"libxplanemp/controls/taxi_lites_on",
-	"libxplanemp/controls/landing_lites_on",
-	"libxplanemp/controls/beacon_lites_on",
-	"libxplanemp/controls/strobe_lites_on",
-	"libxplanemp/controls/nav_lites_on"
+	"/controls/taxi_lites_on",
+	"/controls/landing_lites_on",
+	"/controls/beacon_lites_on",
+	"/controls/strobe_lites_on",
+	"/controls/nav_lites_on",
+    
+    "/engines/engine_rotation_angle_deg",
+    "/engines/engine_rotation_speed_rpm",
+    "/engines/engine_rotation_speed_rad_sec",       // PE defines this: https://www.pilotedge.net/pages/csl-authoring
+    "/engines/prop_rotation_angle_deg",
+    "/engines/prop_rotation_speed_rpm",
+    "/engines/prop_rotation_speed_rad_sec",
+    "/engines/thrust_reverser_deploy_ratio",
+    
+    "/misc/touch_down"
 };
 
 
@@ -103,7 +135,7 @@ static float obj_get_float(void * inRefcon)
 {
 	if(s_cur_plane == NULL) return 0.0f;
 	
-	intptr_t v = reinterpret_cast<intptr_t>(inRefcon);
+	DR_VALUES v = (DR_VALUES)reinterpret_cast<intptr_t>(inRefcon);
 	switch(v)
 	{
 	case gear_rat:			return s_cur_plane->state->gearPosition;		break;
@@ -118,12 +150,22 @@ static float obj_get_float(void * inRefcon)
 	case roll_rat:			return s_cur_plane->state->yokeRoll;			break;
 	case thrs_rev:			return (s_cur_plane->state->thrust < 0.0f) ? 1.0f : 0.0f; break; //if thrust less than zero, reverse is on
 
-	case tax_lite_on:		return static_cast<float>(s_cur_plane->lights.taxiLights);			break;
-	case lan_lite_on:		return static_cast<float>(s_cur_plane->lights.landLights);			break;
-	case bcn_lite_on:		return static_cast<float>(s_cur_plane->lights.bcnLights);			break;
-	case str_lite_on:		return static_cast<float>(s_cur_plane->lights.strbLights);			break;
-	case nav_lite_on:		return static_cast<float>(s_cur_plane->lights.navLights);			break;
+	case tax_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.taxiLights);
+	case lan_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.landLights);
+	case bcn_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.bcnLights);
+	case str_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.strbLights);
+	case nav_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.navLights);
 
+    case engine_rot_angle:      return s_cur_plane->surface.engRotDegree;
+    case engine_rot_speed_rpm:  return s_cur_plane->surface.engRotRpm;
+    case engine_rot_speed_rad:  return s_cur_plane->surface.engRotRpm * 0.10471975511966f;
+    case prop_rot_angle:        return s_cur_plane->surface.propRotDegree;
+    case prop_rot_speed_rpm:    return s_cur_plane->surface.propRotRpm;
+    case prop_rot_speed_rad:    return s_cur_plane->surface.propRotRpm * 0.10471975511966f;
+    case revers_rat:            return s_cur_plane->surface.reversRatio;
+            
+    case touch_down:            return s_cur_plane->surface.touchDown ? 1.0f : 0.0f;
+            
 	default:
 		return 0.0f;
 	}
@@ -159,17 +201,31 @@ void	obj_init()
 		obj8_load_async = false;
 	}
 	
-	for(int i = 0; i < dref_dim; ++i)
-	{
-		XPLMRegisterDataAccessor(
-					dref_names[i], xplmType_Float|xplmType_FloatArray, 0,
-					NULL, NULL,
-					obj_get_float, NULL,
-					NULL, NULL,
-					NULL, NULL,
-					obj_get_float_array, NULL,
-					NULL, NULL, reinterpret_cast<void *>(static_cast<intptr_t>(i)), NULL);
-	}
+    // Shall we register only the client specific dataRefs,
+    // or for compatibility also the standard name "libxplanemp"? (default: yes!)
+    bool bRegisterLibMP = gIntPrefsFunc("planes", "dr_libxplanemp", 1) != 0;
+    
+    // always register the client-specific dataRefs
+    // only if requested register the standard libxplanemp dataRefs
+    for (std::string drRoot: { XPMP_CLIENT_NAME, DREF_STD_ROOT })
+    {
+        for(int i = 0; i < dref_dim; ++i)
+        {
+            XPLMRegisterDataAccessor(
+                        (drRoot + dref_names[i]).c_str(),
+                        xplmType_Float|xplmType_FloatArray, 0,
+                        NULL, NULL,
+                        obj_get_float, NULL,
+                        NULL, NULL,
+                        NULL, NULL,
+                        obj_get_float_array, NULL,
+                        NULL, NULL, reinterpret_cast<void *>(static_cast<intptr_t>(i)), NULL);
+        }
+        
+        // exit loop if we shall not init the standard dataRef
+        if (!bRegisterLibMP)
+            break;
+    }
 }
 
 void obj_loaded_cb(XPLMObjectRef obj, void * refcon)
@@ -202,7 +258,7 @@ void	obj_schedule_one_aircraft(
 		double 					roll,
 		double 					heading,
 		int	   					/*full*/,		//
-		xpmp_LightStatus		lights,
+		XPMPPlaneSurfaces_t		surface,
 		XPLMPlaneDrawState_t *	state)
 {
 	one_obj * iter;
@@ -248,7 +304,7 @@ void	obj_schedule_one_aircraft(
 			auto * i = new one_inst;
 			i->next = iter->head;
 			iter->head = i;
-			i->lights = lights;
+			i->surface = surface;
 			i->state = state;
 			i->location.structSize = sizeof(i->location);
 			i->location.x = static_cast<float>(x);
