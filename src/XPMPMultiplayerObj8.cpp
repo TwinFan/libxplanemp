@@ -75,6 +75,11 @@ enum DR_VALUES {
 	str_lite_on,
 	nav_lite_on,
     
+    tire_deflection,
+    tire_rot_angle,
+    tire_rot_speed_rpm,
+    tire_rot_speed_rad,
+    
     engine_rot_angle,
     engine_rot_speed_rpm,
     engine_rot_speed_rad,
@@ -119,6 +124,11 @@ const char * dref_names[dref_dim] = {
 	"/controls/strobe_lites_on",
 	"/controls/nav_lites_on",
     
+    "/gear/tire_vertical_deflection_mtr",
+    "/gear/tire_rotation_angle_deg",
+    "/gear/tire_rotation_speed_rpm",
+    "/gear/tire_rotation_speed_rad_sec",
+    
     "/engines/engine_rotation_angle_deg",
     "/engines/engine_rotation_speed_rpm",
     "/engines/engine_rotation_speed_rad_sec",       // PE defines this: https://www.pilotedge.net/pages/csl-authoring
@@ -156,6 +166,11 @@ static float obj_get_float(void * inRefcon)
 	case str_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.strbLights);
 	case nav_lite_on:		return static_cast<float>(s_cur_plane->surface.lights.navLights);
 
+    case tire_deflection:       return s_cur_plane->surface.tireDeflect;
+    case tire_rot_angle:        return s_cur_plane->surface.tireRotDegree;
+    case tire_rot_speed_rpm:    return s_cur_plane->surface.tireRotRpm;
+    case tire_rot_speed_rad:    return s_cur_plane->surface.tireRotRpm * 0.10471975511966f;
+            
     case engine_rot_angle:      return s_cur_plane->surface.engRotDegree;
     case engine_rot_speed_rpm:  return s_cur_plane->surface.engRotRpm;
     case engine_rot_speed_rad:  return s_cur_plane->surface.engRotRpm * 0.10471975511966f;
