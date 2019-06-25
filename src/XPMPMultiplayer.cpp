@@ -503,7 +503,8 @@ XPMPPlaneID		XPMPCreatePlane(
 	plane->pos.size = sizeof(plane->pos);
 	plane->surface.size = sizeof(plane->surface);
 	plane->radar.size = sizeof(plane->radar);
-	plane->posAge = plane->radarAge = plane->surfaceAge = -1;
+    plane->infoTexts.size = sizeof(plane->infoTexts);
+	plane->posAge = plane->radarAge = plane->surfaceAge = plane->infoAge -1;
 	gPlanes.push_back(std::move(plane));
 	
 	XPMPPlanePtr planePtr = gPlanes.back().get();
@@ -551,7 +552,8 @@ XPMPPlaneID     XPMPCreatePlaneWithModelName(const char *inModelName, const char
 	plane->pos.size = sizeof(plane->pos);
 	plane->surface.size = sizeof(plane->surface);
 	plane->radar.size = sizeof(plane->radar);
-	plane->posAge = plane->radarAge = plane->surfaceAge = -1;
+    plane->infoTexts.size = sizeof(plane->infoTexts);
+	plane->posAge = plane->radarAge = plane->surfaceAge = plane->infoAge = -1;
 	gPlanes.push_back(std::move(plane));
 
 	XPMPPlanePtr planePtr = gPlanes.back().get();
@@ -763,6 +765,27 @@ XPMPPlaneCallbackResult			XPMPGetPlaneData(
 
 		break;
 	}
+    case xpmpDataType_InfoTexts:
+    {
+        if (plane->infoAge != now)
+        {
+            result = plane->dataFunc(plane, inDataType, &plane->infoTexts, plane->ref);
+            if (result == xpmpData_NewData)
+                plane->infoAge = now;
+        }
+        // Don't know why `result` is _always_ overwritten in legacy code above...
+        // we do process the difference between xpmpData_NewData and xpmpData_Unchanged
+        // as returned by the called app, so we do _not_ override the result code.
+        // So we set xpmpData_Unchanged only here in the else branch if we don't
+        // even call the callback:
+        else
+            result = xpmpData_Unchanged;
+
+        XPMPInfoTexts_t *    infoD = (XPMPInfoTexts_t *) outData;
+        memcpy(infoD, &plane->infoTexts, XPMP_TMIN(infoD->size, plane->infoTexts.size));
+        
+        break;
+    }
 	}
 	return result;
 }

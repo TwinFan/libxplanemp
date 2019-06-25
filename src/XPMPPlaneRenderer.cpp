@@ -48,6 +48,7 @@
 #include <GL/gl.h>
 #endif
 
+#include <cstring>
 #include <vector>
 #include <string>
 #include <set>
@@ -98,6 +99,17 @@ struct multiDataRefsTy {
     XPLMDataRef navLights;  // nav_lights_on
     XPLMDataRef strbLights; // strobe_lights_on
     XPLMDataRef taxiLights; // taxi_light_on
+    
+    // Shared data for providing textual info (see XPMPInfoTexts_t)
+    XPLMDataRef infoTailNum;        // tailnum
+    XPLMDataRef infoIcaoAcType;     // ICAO
+    XPLMDataRef infoManufacturer;   // manufacturer
+    XPLMDataRef infoModel;          // model
+    XPLMDataRef infoIcaoAirline;    // ICAOairline
+    XPLMDataRef infoAirline;        // airline
+    XPLMDataRef infoFlightNum;      // flightnum
+    XPLMDataRef infoAptFrom;        // apt_from
+    XPLMDataRef infoAptTo;          // apt_to
     
     bool        bSlotTaken = false; // during drawing: is this multiplayer plane idx used or not?
     
@@ -293,9 +305,14 @@ void			XPMPInitDefaultPlaneRenderer(void)
 	char		buf[100];
 	multiDataRefsTy	d;
     
-#define FIND_PLANE_DR(membVar, dataRefTxt, PlaneNr)         \
-        sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);                    \
+#define FIND_PLANE_DR(membVar, dataRefTxt, PlaneNr)                            \
+        sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);   \
         d.membVar = XPLMFindDataRef(buf);
+#define SHARE_PLANE_DR(membVar, dataRefTxt, PlaneNr)                           \
+        sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);   \
+        if (XPLMShareData(buf, xplmType_Data, NULL, NULL))                     \
+             d.membVar = XPLMFindDataRef(buf);                                 \
+        else d.membVar = NULL;
 
     for (int n=1; true; n++)
 	{
@@ -332,6 +349,17 @@ void			XPMPInitDefaultPlaneRenderer(void)
         FIND_PLANE_DR(navLights,    "nav_lights_on", n);
         FIND_PLANE_DR(strbLights,   "strobe_lights_on", n);
         FIND_PLANE_DR(taxiLights,   "taxi_light_on", n);
+        
+        // Shared data for providing textual info (see XPMPInfoTexts_t)
+        SHARE_PLANE_DR(infoTailNum,         "tailnum", n);
+        SHARE_PLANE_DR(infoIcaoAcType,      "ICAO", n);
+        SHARE_PLANE_DR(infoManufacturer,    "manufacturer", n);
+        SHARE_PLANE_DR(infoModel,           "model", n);
+        SHARE_PLANE_DR(infoIcaoAirline,     "ICAOairline", n);
+        SHARE_PLANE_DR(infoAirline,         "airline", n);
+        SHARE_PLANE_DR(infoFlightNum,       "flightnum", n);
+        SHARE_PLANE_DR(infoAptFrom,         "apt_from", n);
+        SHARE_PLANE_DR(infoAptTo,           "apt_to", n);
 
         if (!d) break;
 		gMultiRef.push_back(d);
@@ -340,6 +368,27 @@ void			XPMPInitDefaultPlaneRenderer(void)
 
 void XPMPDeinitDefaultPlaneRenderer() {
 	XPLMDestroyProbe(terrainProbe);
+    
+    // Unshare shared data
+#define UNSHARE_PLANE_DR(membVar, dataRefTxt, PlaneNr)                         \
+    sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);       \
+    XPLMUnshareData(buf, xplmType_Data, NULL, NULL);                           \
+    d.membVar = NULL;
+    
+    char        buf[100];
+    for (int n = 1; n <= gMultiRef.size(); n++)
+    {
+        multiDataRefsTy& d = gMultiRef[n-1];
+        UNSHARE_PLANE_DR(infoTailNum,         "tailnum", n);
+        UNSHARE_PLANE_DR(infoIcaoAcType,      "ICAO", n);
+        UNSHARE_PLANE_DR(infoManufacturer,    "manufacturer", n);
+        UNSHARE_PLANE_DR(infoModel,           "model", n);
+        UNSHARE_PLANE_DR(infoIcaoAirline,     "ICAOairline", n);
+        UNSHARE_PLANE_DR(infoAirline,         "airline", n);
+        UNSHARE_PLANE_DR(infoFlightNum,       "flightnum", n);
+        UNSHARE_PLANE_DR(infoAptFrom,         "apt_from", n);
+        UNSHARE_PLANE_DR(infoAptTo,           "apt_to", n);
+    }
 }
 
 void XPMPClearMultiplayerDataRefs (multiDataRefsTy& mdr)
@@ -374,6 +423,19 @@ void XPMPClearMultiplayerDataRefs (multiDataRefsTy& mdr)
     XPLMSetDatai(mdr.navLights, 0);
     XPLMSetDatai(mdr.strbLights, 0);
     XPLMSetDatai(mdr.taxiLights, 0);
+    
+    // Shared data for providing textual info (see XPMPInfoTexts_t)
+    char allNulls[100];
+    memset (allNulls, 0, sizeof(allNulls));
+    XPLMSetDatab(mdr.infoTailNum,       allNulls, 0, sizeof(XPMPInfoTexts_t::tailNum));
+    XPLMSetDatab(mdr.infoIcaoAcType,    allNulls, 0, sizeof(XPMPInfoTexts_t::icaoAcType));
+    XPLMSetDatab(mdr.infoManufacturer,  allNulls, 0, sizeof(XPMPInfoTexts_t::manufacturer));
+    XPLMSetDatab(mdr.infoModel,         allNulls, 0, sizeof(XPMPInfoTexts_t::model));
+    XPLMSetDatab(mdr.infoIcaoAirline,   allNulls, 0, sizeof(XPMPInfoTexts_t::icaoAirline));
+    XPLMSetDatab(mdr.infoAirline,       allNulls, 0, sizeof(XPMPInfoTexts_t::airline));
+    XPLMSetDatab(mdr.infoFlightNum,     allNulls, 0, sizeof(XPMPInfoTexts_t::flightNum));
+    XPLMSetDatab(mdr.infoAptFrom,       allNulls, 0, sizeof(XPMPInfoTexts_t::aptFrom));
+    XPLMSetDatab(mdr.infoAptTo,         allNulls, 0, sizeof(XPMPInfoTexts_t::aptTo));
 }
 
 // reset all (controlled) multiplayer dataRef values
@@ -647,6 +709,23 @@ void XPMPMultiplayerHandling (RenderMap& myPlanes)
             XPLMSetDatai(mdr.strbLights,    plane.surface.lights.strbLights);
             XPLMSetDatai(mdr.taxiLights,    plane.surface.lights.taxiLights);
 
+            // Shared data for providing textual info (see XPMPInfoTexts_t)
+            XPMPInfoTexts_t info;
+            info.size = sizeof(info);
+            if (XPMPGetPlaneData(&plane, xpmpDataType_InfoTexts, &info) == xpmpData_NewData)
+            {
+                // Note: We only update these values if there really is _new_ data!
+                // Calls to XPLMSetDatab can trigger notification callbacks of listeners.
+                XPLMSetDatab(mdr.infoTailNum,       info.tailNum,       0, sizeof(XPMPInfoTexts_t::tailNum));
+                XPLMSetDatab(mdr.infoIcaoAcType,    info.icaoAcType,    0, sizeof(XPMPInfoTexts_t::icaoAcType));
+                XPLMSetDatab(mdr.infoManufacturer,  info.manufacturer,  0, sizeof(XPMPInfoTexts_t::manufacturer));
+                XPLMSetDatab(mdr.infoModel,         info.model,         0, sizeof(XPMPInfoTexts_t::model));
+                XPLMSetDatab(mdr.infoIcaoAirline,   info.icaoAirline,   0, sizeof(XPMPInfoTexts_t::icaoAirline));
+                XPLMSetDatab(mdr.infoAirline,       info.airline,       0, sizeof(XPMPInfoTexts_t::airline));
+                XPLMSetDatab(mdr.infoFlightNum,     info.flightNum,     0, sizeof(XPMPInfoTexts_t::flightNum));
+                XPLMSetDatab(mdr.infoAptFrom,       info.aptFrom,       0, sizeof(XPMPInfoTexts_t::aptFrom));
+                XPLMSetDatab(mdr.infoAptTo,         info.aptTo,         0, sizeof(XPMPInfoTexts_t::aptTo));
+            }
         }
         
         // remember the highest idx used

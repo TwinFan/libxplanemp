@@ -233,6 +233,8 @@ struct	XPMPPlane_t {
 	XPMPPlaneSurfaces_t		surface;
 	int						radarAge;
 	XPMPPlaneRadar_t		radar;
+    int                     infoAge;
+    XPMPInfoTexts_t         infoTexts;
 
 	OBJ7Handle                  objHandle;
 	TextureHandle               texHandle;
