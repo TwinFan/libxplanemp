@@ -584,7 +584,7 @@ void XPMPMultiplayerHandling (RenderMap& myPlanes)
                 if (numTcasPlanes < modelCount)
                 {
                     // current plane MUST get a slot in this range
-                    if (0 <= refIdx && refIdx < modelCount)
+                    if (0 <= refIdx && refIdx < modelCount && !gMultiRef[refIdx].bSlotTaken)
                         // it already has a reserved one, good
                         gMultiRef[refIdx].bSlotTaken = true;
                     else
@@ -593,7 +593,7 @@ void XPMPMultiplayerHandling (RenderMap& myPlanes)
                 } else {
                     // Planes father away (upper part):
                     // If the plane has a reserved slot in the upper part it keeps it
-                    if (modelCount <= refIdx && refIdx < gMultiRef.size())
+                    if (modelCount <= refIdx && refIdx < gMultiRef.size() && !gMultiRef[refIdx].bSlotTaken)
                         gMultiRef[refIdx].bSlotTaken = true;
                     else
                         // Otherwise free it (this might free up lower part slots)
