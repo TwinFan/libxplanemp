@@ -724,6 +724,11 @@ XPMPPlaneCallbackResult			XPMPGetPlaneData(
             // From the application we pull the _next_ frame,
             // which is the pos to be reported in the multiplayer vars
             plane->pos = plane->nextPos;
+            
+            // Output to called application: We inform the multiplayer index
+            // ("+1" because the X-Plane dataRefs are 1-based while our internal array index is 0-based)
+            plane->nextPos.multiIdx = plane->multiIdx + 1;
+            
             result = plane->dataFunc(plane, inDataType, &plane->nextPos, plane->ref);
 			if (result == xpmpData_NewData)
 				plane->posAge = now;
