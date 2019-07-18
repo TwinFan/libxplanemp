@@ -61,9 +61,11 @@ XPMP_TMAX(const T& a, const T& b)
 }
 
 
-const	double	kFtToMeters = 0.3048;
-const	double	kMaxDistTCAS = 40.0 * 6080.0 * kFtToMeters;
-
+constexpr double    kFtToMeters = 0.3048;
+constexpr double    kNmToMeters = 1852.0;
+/// Each AI Prio level is equivalent to 10nm additional distance
+constexpr double kAIPrioMultiplierMeters = 10 * kNmToMeters;
+constexpr int       kSlotChangePeriod = 30; // seconds
 
 /****************** MODEL MATCHING CRAP ***************/
 
@@ -221,11 +223,18 @@ struct	XPMPPlane_t {
 	// This is last known data we got for the plane, with timestamps.
 	int						posAge;
 	XPMPPlanePosition_t		pos;
+    XPMPPlanePosition_t     nextPos;        // next cycle's position
+    
+    // this is data from about a second ago to calculate cartesian velocities
+    double                  prev_x = 0.0f, prev_y = 0.0f, prev_z = 0.0f;
+    std::chrono::steady_clock::time_point prev_ts;
 
 	int						surfaceAge;
 	XPMPPlaneSurfaces_t		surface;
 	int						radarAge;
 	XPMPPlaneRadar_t		radar;
+    int                     infoAge;
+    XPMPInfoTexts_t         infoTexts;
 
 	OBJ7Handle                  objHandle;
 	TextureHandle               texHandle;

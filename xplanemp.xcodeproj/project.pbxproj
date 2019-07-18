@@ -332,6 +332,7 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
+					"SLOT_DEBUG=1",
 					"APL=1",
 					"IBM=0",
 					"LIN=0",

@@ -4,10 +4,9 @@
 
 This is libxplanemp, the multiplayer client code for X-Plane.
 
-See README.MULTIPLAYER for the original README file.
+Changes in this TwinFan fork as compared to the official kuroneko fork are summarized in the [Wiki](https://github.com/TwinFan/libxplanemp/wiki).
 
-To clone this repository to your local drive, use:
-git clone https://github.com/kuroneko/libxplanemp
+See README.MULTIPLAYER for the original README file.
 
 ### Additional Notes
 

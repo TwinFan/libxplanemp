@@ -288,16 +288,6 @@ const char * 	XPMPMultiplayerInit(
 
 	XPMPInitDefaultPlaneRenderer();
 
-	// Register the plane control calls.
-    // change num of planes when drawing airplanes (for TCAS display, but not for 3D airplane rendering)
-	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Airplanes, 1, /* before*/ 0 /* hide planes*/))
-        problem=true;
-
-	if ( !XPLMRegisterDrawCallback(XPMPControlPlaneCount,
-							 xplm_Phase_Airplanes, 0, /* after */ (void *) -1 /* show planes*/))
-        problem=true;
-
 	// Register the actual drawing func.
 	if ( !XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
 							 xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */))
@@ -309,6 +299,7 @@ const char * 	XPMPMultiplayerInit(
 
 void XPMPMultiplayerCleanup(void)
 {
+    XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
 	XPMPDeinitDefaultPlaneRenderer();
 	OGLDEBUG(glDebugMessageCallback(NULL, NULL));
 }
@@ -389,10 +380,6 @@ const  char * XPMPMultiplayerEnable(void)
 		XPLMDebugString("    Make sure you remove any plugins that control multiplayer aircraft if you want these features to work\n");
 	}
 
-	// Register the actual drawing func.
-	XPLMRegisterDrawCallback(XPMPRenderMultiplayerPlanes,
-		xplm_Phase_Airplanes, 0, /* after*/ 0 /* refcon */);
-
 	return "";
 }
 
@@ -401,12 +388,12 @@ void XPMPMultiplayerDisable(void)
 	if (gHasControlOfAIAircraft) {
 		XPLMReleasePlanes();
 		gHasControlOfAIAircraft = false;
+        gPlanePaths.clear();
 
 		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Airplanes, 1, 0);
 		XPLMUnregisterDrawCallback(XPMPControlPlaneCount, xplm_Phase_Airplanes, 0, (void *) -1);
 	}
 
-	XPLMUnregisterDrawCallback(XPMPRenderMultiplayerPlanes, xplm_Phase_Airplanes, 0, 0);
 }
 
 bool XPMPHasControlOfAIAircraft(void)
@@ -516,7 +503,8 @@ XPMPPlaneID		XPMPCreatePlane(
 	plane->pos.size = sizeof(plane->pos);
 	plane->surface.size = sizeof(plane->surface);
 	plane->radar.size = sizeof(plane->radar);
-	plane->posAge = plane->radarAge = plane->surfaceAge = -1;
+    plane->infoTexts.size = sizeof(plane->infoTexts);
+	plane->posAge = plane->radarAge = plane->surfaceAge = plane->infoAge -1;
 	gPlanes.push_back(std::move(plane));
 	
 	XPMPPlanePtr planePtr = gPlanes.back().get();
@@ -564,7 +552,8 @@ XPMPPlaneID     XPMPCreatePlaneWithModelName(const char *inModelName, const char
 	plane->pos.size = sizeof(plane->pos);
 	plane->surface.size = sizeof(plane->surface);
 	plane->radar.size = sizeof(plane->radar);
-	plane->posAge = plane->radarAge = plane->surfaceAge = -1;
+    plane->infoTexts.size = sizeof(plane->infoTexts);
+	plane->posAge = plane->radarAge = plane->surfaceAge = plane->infoAge = -1;
 	gPlanes.push_back(std::move(plane));
 
 	XPMPPlanePtr planePtr = gPlanes.back().get();
@@ -726,7 +715,21 @@ XPMPPlaneCallbackResult			XPMPGetPlaneData(
 	{
 		if (plane->posAge != now)
 		{
-			result = plane->dataFunc(plane, inDataType, &plane->pos, plane->ref);
+            // HACK to reduce jitter in external camera applications:
+            // We draw the plane at the _previous_ frame's position,
+            // because this is the position known to the camera app;
+            // the camera app's callback to retrieve camera position is already
+            // called by this time and the camera position might base on
+            // the multiplayer dataRefs...of the _previous_ frame.
+            // From the application we pull the _next_ frame,
+            // which is the pos to be reported in the multiplayer vars
+            plane->pos = plane->nextPos;
+            
+            // Output to called application: We inform the multiplayer index
+            // ("+1" because the X-Plane dataRefs are 1-based while our internal array index is 0-based)
+            plane->nextPos.multiIdx = plane->multiIdx + 1;
+            
+            result = plane->dataFunc(plane, inDataType, &plane->nextPos, plane->ref);
 			if (result == xpmpData_NewData)
 				plane->posAge = now;
 		}
@@ -767,6 +770,27 @@ XPMPPlaneCallbackResult			XPMPGetPlaneData(
 
 		break;
 	}
+    case xpmpDataType_InfoTexts:
+    {
+        if (plane->infoAge != now)
+        {
+            result = plane->dataFunc(plane, inDataType, &plane->infoTexts, plane->ref);
+            if (result == xpmpData_NewData)
+                plane->infoAge = now;
+        }
+        // Don't know why `result` is _always_ overwritten in legacy code above...
+        // we do process the difference between xpmpData_NewData and xpmpData_Unchanged
+        // as returned by the called app, so we do _not_ override the result code.
+        // So we set xpmpData_Unchanged only here in the else branch if we don't
+        // even call the callback:
+        else
+            result = xpmpData_Unchanged;
+
+        XPMPInfoTexts_t *    infoD = (XPMPInfoTexts_t *) outData;
+        memcpy(infoD, &plane->infoTexts, XPMP_TMIN(infoD->size, plane->infoTexts.size));
+        
+        break;
+    }
 	}
 	return result;
 }

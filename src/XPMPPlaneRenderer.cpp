@@ -48,6 +48,7 @@
 #include <GL/gl.h>
 #endif
 
+#include <cstring>
 #include <vector>
 #include <string>
 #include <set>
@@ -66,14 +67,49 @@
 #define		MAX_LABEL_DIST			5000.0
 
 extern bool	gHasControlOfAIAircraft;
-const float FAR_AWAY_VAL_GL = 9999999.9f;    // don't dare using NAN...but with this coordinate for x/y/z a plane should be far out and virtually invisible
+constexpr float FAR_AWAY_VAL_GL = 9999999.9f;    // don't dare using NAN...but with this coordinate for x/y/z a plane should be far out and virtually invisible
+float fNull[10] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 struct multiDataRefsTy {
-    XPLMDataRef X;
+    XPLMDataRef X;          // position
     XPLMDataRef Y;
     XPLMDataRef Z;
+    
+    XPLMDataRef v_x;        // cartesian velocities
+    XPLMDataRef v_y;
+    XPLMDataRef v_z;
+    
     XPLMDataRef pitch;      // theta
     XPLMDataRef roll;       // phi
     XPLMDataRef heading;    // psi
+    
+    XPLMDataRef gear;       // gear_deploy[10]
+    XPLMDataRef flap;       // flap_ratio
+    XPLMDataRef flap2;      // flap_ratio2
+    XPLMDataRef spoiler;    // spoiler_ratio
+    XPLMDataRef speedbrake; // speedbrake
+    XPLMDataRef slat;       // slat_ratio
+    XPLMDataRef wingSweep;  // wing_sweep
+    XPLMDataRef throttle;   // throttle[8]
+    XPLMDataRef yoke_pitch; // yolk_pitch
+    XPLMDataRef yoke_roll;  // yolk_roll
+    XPLMDataRef yoke_yaw;   // yolk_yaw
+    
+    XPLMDataRef bcnLights;  // beacon_lights_on
+    XPLMDataRef landLights; // landing_lights_on
+    XPLMDataRef navLights;  // nav_lights_on
+    XPLMDataRef strbLights; // strobe_lights_on
+    XPLMDataRef taxiLights; // taxi_light_on
+    
+    // Shared data for providing textual info (see XPMPInfoTexts_t)
+    XPLMDataRef infoTailNum;        // tailnum
+    XPLMDataRef infoIcaoAcType;     // ICAO
+    XPLMDataRef infoManufacturer;   // manufacturer
+    XPLMDataRef infoModel;          // model
+    XPLMDataRef infoIcaoAirline;    // ICAOairline
+    XPLMDataRef infoAirline;        // airline
+    XPLMDataRef infoFlightNum;      // flightnum
+    XPLMDataRef infoAptFrom;        // apt_from
+    XPLMDataRef infoAptTo;          // apt_to
     
     bool        bSlotTaken = false; // during drawing: is this multiplayer plane idx used or not?
     
@@ -268,42 +304,145 @@ void			XPMPInitDefaultPlaneRenderer(void)
     gMultiRef.clear();                  // just a safety measure against multi init
 	char		buf[100];
 	multiDataRefsTy	d;
+    
+#define FIND_PLANE_DR(membVar, dataRefTxt, PlaneNr)                            \
+        sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);   \
+        d.membVar = XPLMFindDataRef(buf);
+#define SHARE_PLANE_DR(membVar, dataRefTxt, PlaneNr)                           \
+        sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);   \
+        if (XPLMShareData(buf, xplmType_Data, NULL, NULL))                     \
+             d.membVar = XPLMFindDataRef(buf);                                 \
+        else d.membVar = NULL;
+
     for (int n=1; true; n++)
 	{
-		sprintf(buf,"sim/multiplayer/position/plane%d_x", n);
-		d.X = XPLMFindDataRef(buf);
-		sprintf(buf,"sim/multiplayer/position/plane%d_y", n);
-		d.Y = XPLMFindDataRef(buf);
-		sprintf(buf,"sim/multiplayer/position/plane%d_z", n);
-		d.Z = XPLMFindDataRef(buf);
-        sprintf(buf,"sim/multiplayer/position/plane%d_the", n);
-        d.pitch = XPLMFindDataRef(buf);
-        sprintf(buf,"sim/multiplayer/position/plane%d_phi", n);
-        d.roll = XPLMFindDataRef(buf);
-        sprintf(buf,"sim/multiplayer/position/plane%d_psi", n);
-        d.heading = XPLMFindDataRef(buf);
-		if (!d) break;
+        // position
+        FIND_PLANE_DR(X,            "x", n);
+        FIND_PLANE_DR(Y,            "y", n);
+        FIND_PLANE_DR(Z,            "z", n);
+        // cartesian velocities
+        FIND_PLANE_DR(v_x,          "v_x", n);
+        FIND_PLANE_DR(v_y,          "v_y", n);
+        FIND_PLANE_DR(v_z,          "v_z", n);
+        // attitude
+        FIND_PLANE_DR(pitch,        "the", n);
+        FIND_PLANE_DR(roll,         "phi", n);
+        FIND_PLANE_DR(heading,      "psi", n);
+        // configuration
+        FIND_PLANE_DR(gear,         "gear_deploy", n);
+        FIND_PLANE_DR(flap,         "flap_ratio", n);
+        FIND_PLANE_DR(flap2,        "flap_ratio2", n);
+        FIND_PLANE_DR(spoiler,      "spoiler_ratio", n);
+        FIND_PLANE_DR(speedbrake,   "speedbrake_ratio", n);
+        FIND_PLANE_DR(slat,         "slat_ratio", n);
+        if (!d.slat) {
+            FIND_PLANE_DR(slat,     "sla1_ratio", n);
+        }
+        FIND_PLANE_DR(wingSweep,    "wing_sweep", n);
+        FIND_PLANE_DR(throttle,     "throttle", n);
+        FIND_PLANE_DR(yoke_pitch,   "yolk_pitch", n);
+        FIND_PLANE_DR(yoke_roll,    "yolk_roll", n);
+        FIND_PLANE_DR(yoke_yaw,     "yolk_yaw", n);
+        // lights
+        FIND_PLANE_DR(bcnLights,    "beacon_lights_on", n);
+        FIND_PLANE_DR(landLights,   "landing_lights_on", n);
+        FIND_PLANE_DR(navLights,    "nav_lights_on", n);
+        FIND_PLANE_DR(strbLights,   "strobe_lights_on", n);
+        FIND_PLANE_DR(taxiLights,   "taxi_light_on", n);
+        
+        // Shared data for providing textual info (see XPMPInfoTexts_t)
+        SHARE_PLANE_DR(infoTailNum,         "tailnum", n);
+        SHARE_PLANE_DR(infoIcaoAcType,      "ICAO", n);
+        SHARE_PLANE_DR(infoManufacturer,    "manufacturer", n);
+        SHARE_PLANE_DR(infoModel,           "model", n);
+        SHARE_PLANE_DR(infoIcaoAirline,     "ICAOairline", n);
+        SHARE_PLANE_DR(infoAirline,         "airline", n);
+        SHARE_PLANE_DR(infoFlightNum,       "flightnum", n);
+        SHARE_PLANE_DR(infoAptFrom,         "apt_from", n);
+        SHARE_PLANE_DR(infoAptTo,           "apt_to", n);
+
+        if (!d) break;
 		gMultiRef.push_back(d);
 	}
 }
 
 void XPMPDeinitDefaultPlaneRenderer() {
 	XPLMDestroyProbe(terrainProbe);
+    
+    // Unshare shared data
+#define UNSHARE_PLANE_DR(membVar, dataRefTxt, PlaneNr)                         \
+    sprintf(buf,"sim/multiplayer/position/plane%d_" dataRefTxt,PlaneNr);       \
+    XPLMUnshareData(buf, xplmType_Data, NULL, NULL);                           \
+    d.membVar = NULL;
+    
+    char        buf[100];
+    for (int n = 1; n <= gMultiRef.size(); n++)
+    {
+        multiDataRefsTy& d = gMultiRef[n-1];
+        UNSHARE_PLANE_DR(infoTailNum,         "tailnum", n);
+        UNSHARE_PLANE_DR(infoIcaoAcType,      "ICAO", n);
+        UNSHARE_PLANE_DR(infoManufacturer,    "manufacturer", n);
+        UNSHARE_PLANE_DR(infoModel,           "model", n);
+        UNSHARE_PLANE_DR(infoIcaoAirline,     "ICAOairline", n);
+        UNSHARE_PLANE_DR(infoAirline,         "airline", n);
+        UNSHARE_PLANE_DR(infoFlightNum,       "flightnum", n);
+        UNSHARE_PLANE_DR(infoAptFrom,         "apt_from", n);
+        UNSHARE_PLANE_DR(infoAptTo,           "apt_to", n);
+    }
+}
+
+void XPMPClearMultiplayerDataRefs (multiDataRefsTy& mdr)
+{
+    mdr.bSlotTaken = false;
+    XPLMSetDataf(mdr.X, FAR_AWAY_VAL_GL);
+    XPLMSetDataf(mdr.Y, FAR_AWAY_VAL_GL);
+    XPLMSetDataf(mdr.Z, FAR_AWAY_VAL_GL);
+    
+    XPLMSetDataf(mdr.v_x, 0.0f);
+    XPLMSetDataf(mdr.v_y, 0.0f);
+    XPLMSetDataf(mdr.v_z, 0.0f);
+    
+    XPLMSetDataf(mdr.pitch, 0.0f);
+    XPLMSetDataf(mdr.roll, 0.0f);
+    XPLMSetDataf(mdr.heading, 0.0f);
+    
+    XPLMSetDatavf(mdr.gear, fNull, 0, 10);
+    XPLMSetDataf(mdr.flap, 0.0f);
+    XPLMSetDataf(mdr.flap2, 0.0f);
+    XPLMSetDataf(mdr.spoiler, 0.0f);
+    XPLMSetDataf(mdr.speedbrake, 0.0f);
+    XPLMSetDataf(mdr.slat, 0.0f);
+    XPLMSetDataf(mdr.wingSweep, 0.0f);
+    XPLMSetDatavf(mdr.throttle, fNull, 0, 8);
+    XPLMSetDataf(mdr.yoke_pitch, 0.0f);
+    XPLMSetDataf(mdr.yoke_roll, 0.0f);
+    XPLMSetDataf(mdr.yoke_yaw, 0.0f);
+    
+    XPLMSetDatai(mdr.bcnLights, 0);
+    XPLMSetDatai(mdr.landLights, 0);
+    XPLMSetDatai(mdr.navLights, 0);
+    XPLMSetDatai(mdr.strbLights, 0);
+    XPLMSetDatai(mdr.taxiLights, 0);
+    
+    // Shared data for providing textual info (see XPMPInfoTexts_t)
+    char allNulls[100];
+    memset (allNulls, 0, sizeof(allNulls));
+    XPLMSetDatab(mdr.infoTailNum,       allNulls, 0, sizeof(XPMPInfoTexts_t::tailNum));
+    XPLMSetDatab(mdr.infoIcaoAcType,    allNulls, 0, sizeof(XPMPInfoTexts_t::icaoAcType));
+    XPLMSetDatab(mdr.infoManufacturer,  allNulls, 0, sizeof(XPMPInfoTexts_t::manufacturer));
+    XPLMSetDatab(mdr.infoModel,         allNulls, 0, sizeof(XPMPInfoTexts_t::model));
+    XPLMSetDatab(mdr.infoIcaoAirline,   allNulls, 0, sizeof(XPMPInfoTexts_t::icaoAirline));
+    XPLMSetDatab(mdr.infoAirline,       allNulls, 0, sizeof(XPMPInfoTexts_t::airline));
+    XPLMSetDatab(mdr.infoFlightNum,     allNulls, 0, sizeof(XPMPInfoTexts_t::flightNum));
+    XPLMSetDatab(mdr.infoAptFrom,       allNulls, 0, sizeof(XPMPInfoTexts_t::aptFrom));
+    XPLMSetDatab(mdr.infoAptTo,         allNulls, 0, sizeof(XPMPInfoTexts_t::aptTo));
 }
 
 // reset all (controlled) multiplayer dataRef values
 void XPMPInitMultiplayerDataRefs() {
     if (gHasControlOfAIAircraft)
         for (multiDataRefsTy& mdr : gMultiRef)
-        {
-            mdr.bSlotTaken = false;
-            XPLMSetDataf(mdr.X, FAR_AWAY_VAL_GL);
-            XPLMSetDataf(mdr.Y, FAR_AWAY_VAL_GL);
-            XPLMSetDataf(mdr.Z, FAR_AWAY_VAL_GL);
-            XPLMSetDataf(mdr.pitch, 0.0f);
-            XPLMSetDataf(mdr.roll, 0.0f);
-            XPLMSetDataf(mdr.heading, 0.0f);
-        }
+            XPMPClearMultiplayerDataRefs(mdr);
 }
 
 /* correctYValue returns the clamped Z value given the input X, Y and Z and the
@@ -343,6 +482,273 @@ struct	PlaneToRender_t {
 };
 typedef	std::map<float, PlaneToRender_t>	RenderMap;
 
+
+// *********************************
+// Handling of AI/multiplayer Planes for TCAS, maps, camera plugins...
+// *********************************
+//
+// We want a plane to keep its index as long as possible. This eases
+// following it from other plugins.
+// The plane's multiplayer idx is in XPMPPlane_t::multiIdx.
+//
+// There are usually 19 slots for multiplayer planes.
+// But the user might have set up less actual AI planes.
+// Some plugins (including XP's own map)consider this number,
+// others doen't.
+// Our approach: We make sure the first `modelCount` slots (lower part)
+// are used by the closest a/c. The others (upper part) fill up with those
+// father away.
+// That certainly means that a/c still might switch AI slots
+// if they move from lower to upper part or vice versa.
+// To avoid too fast/too often switching of slots we allow change of slots
+// only every 30s.
+
+int GetAndReserveNextAISlotNr (XPMPPlane_t& plane)
+{
+    // safeguard: already has a slot?
+    if (plane.multiIdx >= 0)
+        return plane.multiIdx;
+    
+    // search for a free slot
+    for (int idx = 0; idx < gMultiRef.size(); idx++)
+        if (!gMultiRef[idx].bSlotTaken) {
+            gMultiRef[idx].bSlotTaken = true;
+            plane.multiIdx = idx;
+            break;
+        }
+
+#ifdef SLOT_DEBUG
+    if (plane.multiIdx >= 0) {
+        char buf[200];
+        snprintf(buf, sizeof(buf), XPMP_CLIENT_NAME ": ASSIGNING AI Slot %d for %s (%s of %s)\n",
+                 plane.multiIdx+1, plane.livery.c_str(),
+                 plane.icao.c_str(), plane.airline.c_str());
+        XPLMDebugString(buf);
+    }
+#endif
+
+    return plane.multiIdx;
+}
+
+// this is only a function for the debug output
+inline void ClearAISlot (XPMPPlane_t& plane)
+{
+#ifdef SLOT_DEBUG
+    if (plane.multiIdx >= 0) {
+        char buf[200];
+        snprintf(buf, sizeof(buf), XPMP_CLIENT_NAME ": RELEASING AI Slot %d of %s (%s of %s)\n",
+                 plane.multiIdx+1, plane.livery.c_str(),
+                 plane.icao.c_str(), plane.airline.c_str());
+        XPLMDebugString(buf);
+    }
+#endif
+    plane.multiIdx = -1;
+}
+
+void XPMPMultiplayerHandling (RenderMap& myPlanes)
+{
+    // If we don't control AI aircraft we bail out
+    if (!gHasControlOfAIAircraft)
+        return;
+    
+    // `modelCount` is the number of configured AI aircraft
+    int modelCount, active, plugin;
+    XPLMCountAircraft(&modelCount, &active, &plugin);
+    modelCount--;               // first one's the user plane, here we don't count that
+
+    // reset our bookkeeping on used multiplay idx
+    for (multiDataRefsTy& iter: gMultiRef)
+        iter.bSlotTaken = false;
+    
+    // Time of last slot switching activity
+    static std::chrono::steady_clock::time_point tLastSlotSwitching;
+    const std::chrono::steady_clock::time_point tNow = std::chrono::steady_clock::now();
+    // only every few seconds rearrange slots, ie. add/remove planes or
+    // move planes between lower and upper section of AI slots:
+    if (tNow - tLastSlotSwitching > std::chrono::seconds(kSlotChangePeriod))
+    {
+        tLastSlotSwitching = tNow;
+    
+        // run over all known planes in order of prio/distance and
+        // set those multiplayer idx used, which are taken
+        int numTcasPlanes = 0;      // counts TCAS-relevant planes
+        for (const RenderMap::value_type& pair: myPlanes)
+        {
+            // the multiplayer index stored with the plane:
+            const int refIdx = pair.second.plane->multiIdx;
+
+            // TCAS relevant and still AI slots available?
+            if (pair.second.tcas && numTcasPlanes < gMultiRef.size())
+            {
+                // The lower part (close planes), shall display in the safe lower part of AI slots
+                if (numTcasPlanes < modelCount)
+                {
+                    // current plane MUST get a slot in this range
+                    if (0 <= refIdx && refIdx < modelCount && !gMultiRef[refIdx].bSlotTaken)
+                        // it already has a reserved one, good
+                        gMultiRef[refIdx].bSlotTaken = true;
+                    else
+                        // it will get one later (we still might need to free up lower part slots
+                        ClearAISlot(*pair.second.plane);
+                } else {
+                    // Planes father away (upper part):
+                    // If the plane has a reserved slot in the upper part it keeps it
+                    if (modelCount <= refIdx && refIdx < gMultiRef.size() && !gMultiRef[refIdx].bSlotTaken)
+                        gMultiRef[refIdx].bSlotTaken = true;
+                    else
+                        // Otherwise free it (this might free up lower part slots)
+                        ClearAISlot(*pair.second.plane);    // it will get a slot later
+                }
+
+                // one more TCAS plane found
+                numTcasPlanes++;
+            }
+            // not TCAS relevant or ran out of AI slots
+            else
+                ClearAISlot(*pair.second.plane);
+        }           // loop all planes
+    }               // if time for AI slot switching
+    else
+    {
+        // only quickly do bookkeeping on used slots
+        // (even without re-slotting above, planes can have just vanished)
+        for (const RenderMap::value_type& pair: myPlanes) {
+            const int idx = pair.second.plane->multiIdx;
+            if (0 <= idx && idx < gMultiRef.size())
+                gMultiRef[idx].bSlotTaken = true;
+        }
+    }
+        
+    // Fill multiplayer dataRefs for the planes relevant for TCAS
+    int multiCount = 0;         // number of dataRefs set, just to exit loop early
+    int maxMultiIdxUsed = 0;    // maximum AI index used
+    
+    for (RenderMap::value_type& pair: myPlanes) {
+        XPMPPlane_t& plane = *pair.second.plane;
+        
+        // skip planes not relevant for TCAS
+        if (!pair.second.tcas)
+            continue;
+        
+        // Make sure plane has a slot
+        GetAndReserveNextAISlotNr(plane);
+        
+        // still no slot?
+        if (plane.multiIdx < 0 || plane.multiIdx > gMultiRef.size())
+            // skip
+            continue;
+        // this slot taken (safety measure...should not really be needed)
+        gMultiRef[plane.multiIdx].bSlotTaken = true;
+        const multiDataRefsTy& mdr = gMultiRef[plane.multiIdx];
+
+        // HACK to reduce jitter in external camera applications:
+        // The camera app's callback to retrieve camera position is called
+        // _before_ any drawing happens. So what we do here is to provide
+        // the _next_ position for the camera callback to retrieve before
+        // the _next_ cycle.
+        // This is one frame off of what we are drawing. Still _very_ close ;)
+        double aiX, aiY, aiZ;
+        XPLMWorldToLocal(plane.nextPos.lat,
+                         plane.nextPos.lon,
+                         plane.nextPos.elevation * kFtToMeters,
+                         &aiX, &aiY, &aiZ);
+        XPLMSetDataf(mdr.X,      (float)aiX);
+        XPLMSetDataf(mdr.Y,      (float)aiY);
+        XPLMSetDataf(mdr.Z,      (float)aiZ);
+        // attitude
+        XPLMSetDataf(mdr.pitch,  plane.nextPos.pitch);
+        XPLMSetDataf(mdr.roll,   plane.nextPos.roll);
+        XPLMSetDataf(mdr.heading,plane.nextPos.heading);
+        // configuration
+        float arrGear[10] = {
+            plane.surface.gearPosition, plane.surface.gearPosition, plane.surface.gearPosition,
+            plane.surface.gearPosition, plane.surface.gearPosition, plane.surface.gearPosition,
+            plane.surface.gearPosition, plane.surface.gearPosition, plane.surface.gearPosition,
+            plane.surface.gearPosition };
+        XPLMSetDatavf(mdr.gear, arrGear, 0, 10);
+        XPLMSetDataf(mdr.flap,  plane.surface.flapRatio);
+        XPLMSetDataf(mdr.flap2, plane.surface.flapRatio);
+        // [...]
+        XPLMSetDataf(mdr.yoke_pitch,    plane.surface.yokePitch);
+        XPLMSetDataf(mdr.yoke_roll,     plane.surface.yokeRoll);
+        XPLMSetDataf(mdr.yoke_yaw,      plane.surface.yokeHeading);
+        
+        // For performance reasons and because differences (cartesian velocity)
+        // are smoother if calculated over "longer" time frames,
+        // the following updates are done about every second only
+        if (tNow - plane.prev_ts > std::chrono::seconds(1))
+        {
+            // do we have any prev x/y/z values at all?
+            if (plane.prev_ts != std::chrono::steady_clock::time_point()) {
+                // yes, so we can calculate velocity
+                const std::chrono::duration<double, std::milli> dur_ms = tNow - plane.prev_ts;
+                const double d_s = dur_ms.count() / 1000.0;     // seconds with fractions
+                XPLMSetDataf(mdr.v_x, float((aiX - plane.prev_x) / d_s));
+                XPLMSetDataf(mdr.v_y, float((aiY - plane.prev_y) / d_s));
+                XPLMSetDataf(mdr.v_z, float((aiZ - plane.prev_z) / d_s));
+            }
+            plane.prev_x = aiX;
+            plane.prev_y = aiY;
+            plane.prev_z = aiZ;
+            plane.prev_ts = tNow;
+
+            // configuration (cont.)
+            XPLMSetDataf(mdr.spoiler,       plane.surface.spoilerRatio);
+            XPLMSetDataf(mdr.speedbrake,    plane.surface.speedBrakeRatio);
+            XPLMSetDataf(mdr.slat,          plane.surface.slatRatio);
+            XPLMSetDataf(mdr.wingSweep,     plane.surface.wingSweep);
+            float arrThrottle[8] = {
+                plane.surface.thrust, plane.surface.thrust, plane.surface.thrust,
+                plane.surface.thrust, plane.surface.thrust, plane.surface.thrust,
+                plane.surface.thrust, plane.surface.thrust };
+            XPLMSetDatavf(mdr.throttle,     arrThrottle, 0, 10);
+            // lights
+            XPLMSetDatai(mdr.bcnLights,     plane.surface.lights.bcnLights);
+            XPLMSetDatai(mdr.landLights,    plane.surface.lights.landLights);
+            XPLMSetDatai(mdr.navLights,     plane.surface.lights.navLights);
+            XPLMSetDatai(mdr.strbLights,    plane.surface.lights.strbLights);
+            XPLMSetDatai(mdr.taxiLights,    plane.surface.lights.taxiLights);
+
+            // Shared data for providing textual info (see XPMPInfoTexts_t)
+            XPMPInfoTexts_t info;
+            info.size = sizeof(info);
+            if (XPMPGetPlaneData(&plane, xpmpDataType_InfoTexts, &info) == xpmpData_NewData)
+            {
+                // Note: We only update these values if there really is _new_ data!
+                // Calls to XPLMSetDatab can trigger notification callbacks of listeners.
+                XPLMSetDatab(mdr.infoTailNum,       info.tailNum,       0, sizeof(XPMPInfoTexts_t::tailNum));
+                XPLMSetDatab(mdr.infoIcaoAcType,    info.icaoAcType,    0, sizeof(XPMPInfoTexts_t::icaoAcType));
+                XPLMSetDatab(mdr.infoManufacturer,  info.manufacturer,  0, sizeof(XPMPInfoTexts_t::manufacturer));
+                XPLMSetDatab(mdr.infoModel,         info.model,         0, sizeof(XPMPInfoTexts_t::model));
+                XPLMSetDatab(mdr.infoIcaoAirline,   info.icaoAirline,   0, sizeof(XPMPInfoTexts_t::icaoAirline));
+                XPLMSetDatab(mdr.infoAirline,       info.airline,       0, sizeof(XPMPInfoTexts_t::airline));
+                XPLMSetDatab(mdr.infoFlightNum,     info.flightNum,     0, sizeof(XPMPInfoTexts_t::flightNum));
+                XPLMSetDatab(mdr.infoAptFrom,       info.aptFrom,       0, sizeof(XPMPInfoTexts_t::aptFrom));
+                XPLMSetDatab(mdr.infoAptTo,         info.aptTo,         0, sizeof(XPMPInfoTexts_t::aptTo));
+            }
+        }
+        
+        // remember the highest idx used
+        if (plane.multiIdx > maxMultiIdxUsed)
+            maxMultiIdxUsed = plane.multiIdx;
+        
+        // count number of multiplayer planes reported...we can stop early if
+        // all slots have been filled
+        if (++multiCount >= gMultiRef.size())
+            break;
+    }
+
+    // Cleanup unused multiplayer datarefs
+    for (multiDataRefsTy& mdr : gMultiRef)
+        // if not used reset all values
+        if (!mdr.bSlotTaken)
+            XPMPClearMultiplayerDataRefs(mdr);
+
+    // Final hack - leave a note to ourselves for how many of Austin's planes we relocated to do TCAS.
+    gEnableCount = (maxMultiIdxUsed+1);
+}
+
+// Main function for rendering planes
 
 void			XPMPDefaultPlaneRenderer(int is_blend)
 {
@@ -388,10 +794,9 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	gTotPlanes = (int)planeCount;
 	gNavPlanes = gACFPlanes = gOBJPlanes = 0;
 
-	int modelCount, active, plugin;
-	XPLMCountAircraft(&modelCount, &active, &plugin);
-
-	RenderMap						myPlanes;		// Planes - sorted by distance so we can do the closest N and bail
+    // Planes - sorted by (prio x distance) so we can do the closest N and bail
+    //
+	RenderMap						myPlanes;
 	
 	/************************************************************************************
 	 * CULLING AND STATE CALCULATION LOOP
@@ -399,6 +804,8 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	
 	if (gDumpOneRenderCycle)
 	{
+        int modelCount, active, plugin;
+        XPLMCountAircraft(&modelCount, &active, &plugin);
 		XPLMDebugString("Dumping one cycle map of planes.\n");
 		char	fname[256], bigbuf[1024], foo[32];
 		for (int n = 1; n < modelCount; ++n)
@@ -434,27 +841,22 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 														static_cast<float>(y),
 														static_cast<float>(z)));
 			
-			// If the plane is farther than our TCAS range, it's just not visible.  Drop it!
-            if (distMeters > kMaxDistTCAS) {
-                id->multiIdx = -1;
-				continue;
-            }
-
 			// Only draw if it's in range.
 			bool cull = (distMeters > maxDist);
 			
 			XPMPPlaneRadar_t radar;
 			radar.size = sizeof(radar);
 			bool tcas = true;
+            int aiPrio = pos.aiPrio;            // instead of deciding not to show a/c we use priorities to fill up the 19 slots with the most TCAS-interesting a/c
 			if (XPMPGetPlaneData(id, xpmpDataType_Radar, &radar) != xpmpData_Unavailable)
 				if (radar.mode == xpmpTransponderMode_Standby)
 					tcas = false;
 
-			// check for altitude - if difference exceeds a preconfigured limit, don't show
+			// check for altitude - if difference exceeds a preconfigured limit, reduce prio
 			double acft_alt = XPLMGetDatad(gAltitudeRef) / kFtToMeters;
 			double alt_diff = pos.elevation - acft_alt;
 			if(alt_diff < 0) alt_diff *= -1;
-			if(alt_diff > MAX_TCAS_ALTDIFF) tcas = false;
+			if(alt_diff > MAX_TCAS_ALTDIFF) aiPrio += 3;
 
 			// Calculate the heading from the camera to the target (hor, vert).
 			// Calculate the angles between the camera angles and the real angles.
@@ -528,7 +930,10 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 					renderRecord.plane->surface.gearPosition = 1.0;
 				renderRecord.full = drawFullPlane;
 				renderRecord.dist = distMeters;
-				myPlanes.insert(RenderMap::value_type(distMeters, renderRecord));
+                // myPlanes is sorted considering aiPrio and distance.
+                // We achieve that by adding a high constant value (10nm) per prio:
+				myPlanes.emplace(float(aiPrio * kAIPrioMultiplierMeters + distMeters),
+                                 renderRecord);
 
 			} // State calculation
 			
@@ -539,35 +944,6 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	if (gDumpOneRenderCycle)
 		XPLMDebugString("End of cycle dump.\n");
     
-    /************************************************************************************
-     * Prepare multiplayer indexes
-     ************************************************************************************/
-
-    // We want a plane to keep its index as long as it shows. The eases following it
-    // from other plugins (TCAS, maps...etc)
-    // The plane's multiplayer idx is in XPMPPlane_t::multiIdx
-    if (gHasControlOfAIAircraft)
-    {
-        // reset our bookkeeping on used multiplay idx
-        for (multiDataRefsTy& iter: gMultiRef)
-            iter.bSlotTaken = false;
-        
-        // run over all known planes in order of distance(!) and set those multiplayer idx used, which are takem
-        int numTcasPlanes = 0;
-        for (RenderMap::iterator iter = myPlanes.begin();
-             iter != myPlanes.end() && numTcasPlanes < gMultiRef.size();      // at most as often as we found TCAS-relevant planes
-             ++iter)
-        {
-            if (iter->second.tcas) {                                // TCAS relevant?
-                XPMPPlanePtr p = iter->second.plane;
-                if (p->multiIdx >= 0 &&
-                    p->multiIdx < gMultiRef.size())
-                    gMultiRef[p->multiIdx].bSlotTaken = true;       // has a 'resevred' multiplayer idx
-                numTcasPlanes++;                                  // one more TCAS plane found
-            }
-        }
-    }
-	
 	/************************************************************************************
 	 * ACTUAL RENDERING LOOP
 	 ************************************************************************************/
@@ -578,9 +954,6 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 	// We do this in two stages: building up what to do, then doing it in the optimal
 	// OGL order.
 	
-	size_t	renderedCounter = 0;
-    int     maxMultiIdxUsed = 0;
-
 	vector<PlaneToRender_t *>			planes_obj_lites;
 	multimap<int, PlaneToRender_t *>	planes_austin;
 	vector<PlaneToRender_t *>			planes_obj;
@@ -651,6 +1024,8 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 				// Safety check - if plane 1 isn't even loaded do NOT draw, do NOT draw plane 0.
 				// Using the user's planes can cause the internal flight model to get f-cked up.
 				// Using a non-loaded plane can trigger internal asserts in x-plane.
+                int modelCount, active, plugin;
+                XPLMCountAircraft(&modelCount, &active, &plugin);
 				if (modelCount > 1)
 					if(!is_blend)
 						XPLMDrawAircraft(1,
@@ -663,30 +1038,6 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 		}
 
-		// TCAS handling - if the plane needs to be drawn on TCAS and we haven't yet, move one of Austin's planes.
-		if (iter->second.tcas && renderedCounter < gMultiRef.size() && gHasControlOfAIAircraft)
-		{
-            // figure out the multiplayer idx to use
-            int idx = iter->second.plane->multiIdx;
-            if (idx < 0 || idx >= gMultiRef.size())         // none assinged yet -> find one!
-            {
-                for (idx = 0; idx < gMultiRef.size() && gMultiRef[idx].bSlotTaken; idx++);
-            }
-            
-            if (0 <= idx && idx < gMultiRef.size()) {
-                XPLMSetDataf(gMultiRef[idx].X,      iter->second.x);
-                XPLMSetDataf(gMultiRef[idx].Y,      iter->second.y);
-                XPLMSetDataf(gMultiRef[idx].Z,      iter->second.z);
-                XPLMSetDataf(gMultiRef[idx].pitch,  iter->second.plane->pos.pitch);
-                XPLMSetDataf(gMultiRef[idx].roll,   iter->second.plane->pos.roll);
-                XPLMSetDataf(gMultiRef[idx].heading,iter->second.plane->pos.heading);
-                gMultiRef[idx].bSlotTaken = true;           // this slot taken
-                iter->second.plane->multiIdx = idx;         // save for reuse
-                if (idx > maxMultiIdxUsed)                  // remember the highest idx used
-                    maxMultiIdxUsed = idx;
-                ++renderedCounter;
-            }
-		}
 	}
 	
 	// PASS 1 - draw Austin's planes.
@@ -703,7 +1054,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 							planeMapIter->second->plane->pos.heading,
 							plane_Austin,
 							planeMapIter->second->full ? 1 : 0,
-							planeMapIter->second->plane->surface.lights,
+							planeMapIter->second->plane->surface,
 							&planeMapIter->second->state);
 
 			if (planeMapIter->second->full)
@@ -734,7 +1085,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 						plane_obj->plane->pos.heading,
 						plane_Obj,
 						plane_obj->full ? 1 : 0,
-						plane_obj->plane->surface.lights,
+						plane_obj->plane->surface,
 						&plane_obj->state);
 			++gOBJPlanes;
 		}
@@ -751,7 +1102,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 						(*planeIter)->plane->pos.heading,
 						plane_Obj8,
 						(*planeIter)->full ? 1 : 0,
-						(*planeIter)->plane->surface.lights,
+						(*planeIter)->plane->surface,
 						&(*planeIter)->state);
 	}
 
@@ -777,7 +1128,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 								(*planeIter)->plane->pos.heading,
 								plane_Lights,
 								(*planeIter)->full ? 1 : 0,
-								(*planeIter)->plane->surface.lights,
+								(*planeIter)->plane->surface,
 								&(*planeIter)->state);
 			}
 		}
@@ -828,7 +1179,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 			}
 
 			for (RenderMap::iterator iter = myPlanes.begin(); iter != myPlanes.end(); ++iter)
-				if(iter->first < labelDist)
+				if(iter->second.dist < labelDist)
 					if(!iter->second.cull)		// IMPORTANT - airplane BEHIND us still maps XY onto screen...so we get 180 degree reflections.  But behind us acf are culled, so that's good.
 					{
 						float x, y;
@@ -838,7 +1189,7 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
                         // rat is between 0.0 (plane very close) and 1.0 (shortly before label cut-off):
                         // and defines how much we move towards light gray for distance
                         const PlaneToRender_t& ptr = iter->second;
-                        const float rat = iter->first / static_cast<float>(labelDist);
+                        const float rat = iter->second.dist / static_cast<float>(labelDist);
                         constexpr float gray[4] = {0.6f, 0.6f, 0.6f, 1.0f};
                         float c[4] = {
                             (1.0f-rat) * ptr.plane->pos.label_color[0] + rat * gray[0],     // red
@@ -857,24 +1208,8 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 
 		}
 
-	
-	// Final hack - leave a note to ourselves for how many of Austin's planes we relocated to do TCAS.
-	gEnableCount = (maxMultiIdxUsed+1);
-    // As some plugins don't consider XPLMCountAircraft let's cleanup unused multiplayer datarefs
-    if (gHasControlOfAIAircraft) {
-        for (multiDataRefsTy& mdr : gMultiRef)
-        {
-            // if not used reset all values
-            if (!mdr.bSlotTaken) {
-                XPLMSetDataf(mdr.X, FAR_AWAY_VAL_GL);
-                XPLMSetDataf(mdr.Y, FAR_AWAY_VAL_GL);
-                XPLMSetDataf(mdr.Z, FAR_AWAY_VAL_GL);
-                XPLMSetDataf(mdr.pitch, 0.0f);
-                XPLMSetDataf(mdr.roll, 0.0f);
-                XPLMSetDataf(mdr.heading, 0.0f);
-            }
-        }
-    }
+    // Handling of TCAS/AI/Multiplayer DataRefs
+    XPMPMultiplayerHandling(myPlanes);
 	
 	gDumpOneRenderCycle = 0;
 

@@ -114,7 +114,7 @@ void			CSL_DrawObject(
 		double 					heading,
 		int						type,
 		int	   					full,
-		xpmp_LightStatus		lights,
+		XPMPPlaneSurfaces_t		surface,
 		XPLMPlaneDrawState_t *	state);
 
 

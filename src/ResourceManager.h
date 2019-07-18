@@ -34,14 +34,16 @@ public:
         auto &futureIt = state->m_futureIt;
 
         std::shared_ptr<T> resource;
-        if (isSingular(resourceIt)) { resourceIt = m_resourceCache.find(name); }
+        if (isSingular(resourceIt) || resourceIt == m_resourceCache.end())
+            resourceIt = m_resourceCache.find(name);
         if (resourceIt != m_resourceCache.end())
         {
             resource = resourceIt->second.lock();
         }
         if (resource) { return resource; }
 
-        if (isSingular(futureIt)) { futureIt = m_futureCache.find(name); }
+        if (isSingular(futureIt) || futureIt == m_futureCache.end())
+            futureIt = m_futureCache.find(name);
         if (futureIt == m_futureCache.end())
         {
             futureIt = m_futureCache.emplace(name, m_factory(name)).first;

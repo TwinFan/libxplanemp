@@ -28,6 +28,8 @@ XPMPPlaneCallbackResult	XPCAircraft::AircraftCB(
 		return me->GetPlaneSurfaces((XPMPPlaneSurfaces_t *) ioData);
 	case xpmpDataType_Radar:
 		return me->GetPlaneRadar((XPMPPlaneRadar_t *) ioData);
+    case xpmpDataType_InfoTexts:
+        return me->GetInfoTexts((XPMPInfoTexts_t *) ioData);
 	default:
 		return xpmpData_Unavailable;
 	}
