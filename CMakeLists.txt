@@ -31,7 +31,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
     if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
         # Use highest optimization level in Release builds
-        add_compile_options(/GL)
+        # doesn't work with VS 2019 - add_compile_options(/GL)
     endif()
 	set(XPMP_DEFINES ${XPMP_DEFINES} IBM=1 _CRT_SECURE_NO_WARNINGS)
 	#set(XPMP_PLATFORM_SOURCES
@@ -86,7 +86,8 @@ target_include_directories(xplanemp
 		${ADDITIONAL_INCLUDES}
 		${XPSDK_INCLUDE_DIRS}
 		${CMAKE_CURRENT_SOURCE_DIR}/include
-		${CMAKE_CURRENT_SOURCE_DIR}/src)
+		${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/zlib)
 target_link_libraries(xplanemp
 	PRIVATE ${XPSDK_XPLM_LIBRARIES}
 	${PNG_LIBRARY}
