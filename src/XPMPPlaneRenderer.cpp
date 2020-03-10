@@ -836,10 +836,10 @@ void			XPMPDefaultPlaneRenderer(int is_blend)
 			double	x,y,z;
 			XPLMWorldToLocal(pos.lat, pos.lon, pos.elevation * kFtToMeters, &x, &y, &z);
 			
-			float distMeters = sqrt(sphere_distance_sqr(&gl_camera,
-														static_cast<float>(x),
-														static_cast<float>(y),
-														static_cast<float>(z)));
+			float distMeters = sqrtf(sphere_distance_sqr(&gl_camera,
+														 static_cast<float>(x),
+														 static_cast<float>(y),
+														 static_cast<float>(z)));
 			
 			// Only draw if it's in range.
 			bool cull = (distMeters > maxDist);
