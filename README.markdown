@@ -1,6 +1,13 @@
 # libxplanemp
 
-### Multiplayer library for X-Plane
+## Deprecation Note
+
+**Note: This fork will no longer be maintained any further!**
+**Check out [TwinFan/XPMP2](https://github.com/TwinFan/XPMP2) instead,** which is **ready for Vulkan/Metal** by implementing **[instancing](https://developer.x-plane.com/sdk/XPLMInstance/)**, and also has **[TCAS Override](https://developer.x-plane.com/sdk/XPLMInstance/)** already: up to 63 TCAS blibs without configuring AI Aircraft.
+
+XPMP2 can be used as a **replacement for libxplanemp** with only very little source code changes. **New projects shall definitely base on XPMP2!**
+
+## Multiplayer library for X-Plane
 
 This is libxplanemp, the multiplayer client code for X-Plane.
 
